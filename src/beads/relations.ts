@@ -10,7 +10,7 @@ import {
   type Relation,
   type Recommendations,
 } from "./graph-schema";
-import { errorMessage } from "../text";
+import { boundedText, errorMessage } from "../text";
 
 const Neighbor = Issue.extend({ dependency_type: z.string() });
 const Rows = z.union([
@@ -18,6 +18,7 @@ const Rows = z.union([
   z.object({ schema_version: z.literal(1), data: z.array(Neighbor) }),
 ]);
 type Neighbor = z.infer<typeof Neighbor>;
+const blockingTypes = new Set(["blocks", "conditional-blocks", "waits-for"]);
 
 export function createRelations(
   options: ProcessOptions,
@@ -27,7 +28,7 @@ export function createRelations(
     Effect.tryPromise({
       try: async (signal) => {
         const stdout = await runBeads(
-          { ...options, timeout: 3000, maxBuffer: 1024 * 1024 },
+          { ...options, timeout: 10_000, maxBuffer: 1024 * 1024 },
           [
             "--readonly",
             "--sandbox",
@@ -90,18 +91,12 @@ export function createRelations(
   });
   const describe = (issue: Issue) =>
     neighbors(issue.id, "up").pipe(
-      Effect.map((items) => ({
-        issue,
-        count: items.filter(
-          (item) =>
-            item.dependency_type === "blocks" && item.status !== "closed",
-        ).length,
-        warning: "",
-      })),
+      Effect.map((items) => describeImpact(issue, items)),
       Effect.catch((error) =>
         Effect.succeed({
           issue,
-          count: 0,
+          dependentCount: 0,
+          blockingCount: 0,
           warning: `${issue.id}: relationship counts unavailable: ${errorMessage(error)}`,
         }),
       ),
@@ -120,7 +115,7 @@ export function createRelations(
       .sort(
         (a, b) =>
           a.issue.priority - b.issue.priority ||
-          b.count - a.count ||
+          b.blockingCount - a.blockingCount ||
           a.issue.id.localeCompare(b.issue.id),
       );
     return {
@@ -149,9 +144,25 @@ function priorityOrder(a: Issue, b: Issue) {
   return a.priority - b.priority || a.id.localeCompare(b.id);
 }
 
-function dependencyReason(item: { count: number; warning: string }) {
+function describeImpact(issue: Issue, items: Neighbor[]) {
+  const open = items.filter((item) => item.status !== "closed");
+  return {
+    issue,
+    dependentCount: open.length,
+    blockingCount: open.filter((item) =>
+      blockingTypes.has(item.dependency_type),
+    ).length,
+    warning: "",
+  };
+}
+
+function dependencyReason(item: {
+  dependentCount: number;
+  blockingCount: number;
+  warning: string;
+}) {
   if (item.warning) return "Dependency impact unavailable";
-  return `${item.count} direct non-closed dependent(s) through blocks edges; not a predicted Ready count`;
+  return `${item.blockingCount} direct non-closed blocking dependent(s), ${item.dependentCount} total; not a predicted Ready count`;
 }
 
 function relation(
@@ -160,13 +171,18 @@ function relation(
   issue?: Neighbor,
   metadata?: string,
 ): Relation {
-  return {
+  const result: Relation = {
     id,
-    type,
-    metadata,
-    title: issue?.title ?? "Unavailable or external reference",
-    status: issue?.status ?? "unknown",
+    type: boundedText(type, 100),
+    title: boundedText(
+      issue?.title ?? "Unavailable or external reference",
+      500,
+    ),
+    status: boundedText(issue?.status ?? "unknown", 100),
     available: Boolean(issue),
     canInspect: Boolean(issue) && IssueID.safeParse(id).success,
   };
+  return metadata === undefined
+    ? result
+    : { ...result, metadata: boundedText(metadata, 2000) };
 }

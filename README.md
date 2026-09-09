@@ -1,6 +1,6 @@
 # opencode-beads
 
-A [Beads](https://github.com/gastownhall/beads) plugin for [OpenCode V2](https://opencode.ai/v2/docs/). Browse, inspect, and claim issues from your terminal.
+A [Beads](https://github.com/gastownhall/beads) plugin for [OpenCode V2](https://opencode.ai/v2/docs/). Browse, inspect, claim, and finish issues from your terminal.
 
 This is an unofficial plugin, not affiliated with or endorsed by anomalyco.
 
@@ -34,12 +34,23 @@ claim and context actions beside it; compact panels keep the queue in focus.
 | `r`                  | Refresh                                        |
 | `a`                  | Add issue context to the conversation          |
 | `s`                  | Claim the issue and start work in this session |
+| `b`                  | Inspect the current automatic work brief       |
+| `g`                  | Choose and inspect a related bead              |
+| `x`                  | Finish linked work with validation evidence    |
 | `f`                  | Toggle fullscreen                              |
 | `Esc`                | Go back or close                               |
 
-Browsing is read-only. A session can claim multiple issues; each keeps its own retry-safe work prompt. Search covers up to 100 loaded results.
+Browsing is read-only. A session can claim multiple issues; each keeps its own
+retry-safe work prompt. Current owned work is added to subsequent model context
+without creating another turn. Immediate relationships preserve Beads edge types;
+they explain the neighborhood but never replace Beads Ready membership.
 
-Agents get `beads_list`, `beads_show`, and `beads_claim` tools.
+Finish requires a summary and validation evidence, retains them in Beads, retires
+the matching session link, and reports work newly observed as Ready. Search covers
+up to 100 loaded results.
+
+Agents get `beads_list`, `beads_show`, `beads_claim`, `beads_context`,
+`beads_graph`, `beads_next`, and `beads_finish` tools.
 
 ## Development
 

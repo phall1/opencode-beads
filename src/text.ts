@@ -23,7 +23,7 @@ export function utf8Bytes(value: string): number {
 export function boundedText(value: string, budget: number): string {
   const text = readableText(value);
   if (utf8Bytes(text) <= budget) return text;
-  const suffix = "… [truncated; inspect full bead]";
+  const suffix = fitText("… [truncated; inspect full bead]", budget);
   let result = "";
   let bytes = utf8Bytes(suffix);
   for (const char of text) {
@@ -32,4 +32,15 @@ export function boundedText(value: string, budget: number): string {
     result += char;
   }
   return result + suffix;
+}
+
+function fitText(value: string, budget: number): string {
+  let result = "";
+  let bytes = 0;
+  for (const char of value) {
+    bytes += utf8Bytes(char);
+    if (bytes > budget) break;
+    result += char;
+  }
+  return result;
 }

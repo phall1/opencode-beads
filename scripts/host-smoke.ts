@@ -78,6 +78,42 @@ async function hostCheck(directory: string, pluginDirectory: string) {
           assert.ok(
             links.every((link) => !("prompt" in link) && !("promptID" in link)),
           );
+          const brief = yield* rpc.context(
+            { sessionID: session.id },
+            { location },
+          );
+          assert.deepEqual([...brief.activeIDs].sort(), ["demo-1", "demo-2"]);
+          assert.match(brief.text, /BEADS WORK BRIEF/);
+          assert.equal(brief.truncated, false);
+          const graph = yield* rpc.graph(
+            { id: "demo-1", limit: 30 },
+            { location },
+          );
+          assert.deepEqual(graph.dependencies, []);
+          assert.deepEqual(graph.dependents, []);
+          const next = yield* rpc.next({ limit: 3 }, { location });
+          assert.equal(next.readyCount, 0);
+          const finished = yield* rpc.finish(
+            {
+              id: "demo-1",
+              sessionID: session.id,
+              evidence: {
+                summary: "Host completion flow",
+                validation: "Installed SDK assertions passed",
+                artifacts: "host-smoke.ts",
+              },
+            },
+            { location },
+          );
+          assert.equal(finished.issue.status, "closed");
+          assert.match(finished.issue.close_reason, /Host completion flow/);
+          assert.equal(finished.issue.closed_by_session, session.id);
+          assert.deepEqual(
+            (yield* rpc.links({ sessionID: session.id }, { location })).map(
+              (link) => link.id,
+            ),
+            ["demo-2"],
+          );
           yield* host.session.interrupt({
             sessionID: session.id,
             continue: false,
@@ -126,16 +162,27 @@ async function isolatedCheck(pluginDirectory: string) {
       `#!${process.execPath}
 if(process.cwd().endsWith('/broken')) { console.error('backend unavailable'); process.exit(1); }
 const args = process.argv.slice(2);
-const id = args.includes('--claim') ? args[1] : args[args.indexOf('--id') + 1];
 const records = ['demo-1', 'demo-2'];
 const make = (id) => ({id,title:process.cwd().split('/').pop(),priority:1,status:'open'});
 const read = async (id) => await Bun.file('.claim-' + id + '.json').exists() ? await Bun.file('.claim-' + id + '.json').json() : make(id);
+const command = args.find((arg) => ['update','heartbeat','close','ready','list','dep'].includes(arg));
+if(command === 'dep') { console.log('[]'); process.exit(0); }
+if(command === 'ready') {
+  const data = (await Promise.all(records.map(read))).filter((issue) => issue.status === 'open');
+  console.log(JSON.stringify({schema_version:1,data})); process.exit(0);
+}
+const explicit = args.find((arg) => arg.startsWith('--id='))?.slice(5);
+const id = command === 'update' || command === 'heartbeat' || command === 'close' ? args[args.indexOf(command) + 1] : explicit;
 let issue = await read(records.includes(id) ? id : 'demo-1');
-if(process.argv.includes('--claim')) {
+if(command === 'update' && args.includes('--claim')) {
   issue = {...issue, status:'in_progress', assignee:process.argv[process.argv.indexOf('--actor')+1]};
   await Bun.write('.claim-' + id + '.json', JSON.stringify(issue));
 }
-const data = args.includes('--id') || args.includes('--claim') ? [issue] : await Promise.all(records.map(read));
+if(command === 'close') {
+  issue = {...issue,status:'closed',close_reason:args[args.indexOf('--reason')+1],closed_by_session:args[args.indexOf('--session')+1]};
+  await Bun.write('.claim-' + id + '.json', JSON.stringify(issue));
+}
+const data = explicit || args.includes('--claim') || command === 'close' ? [issue] : await Promise.all(records.map(read));
 console.log(JSON.stringify({schema_version:1,data}));`,
     );
     await chmod(executable, 0o755);

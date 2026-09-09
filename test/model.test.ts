@@ -87,3 +87,80 @@ test("dispose aborts in-flight list requests", async () => {
   await task;
   expect(model.state.result).toBeUndefined();
 });
+
+test("relationship navigation loads the neighbor and Back restores prior detail", async () => {
+  const shown: string[] = [];
+  const graphed: string[] = [];
+  const model = createWorkbench({
+    list: async () => result(),
+    show: async (id) => {
+      shown.push(id);
+      return issue(id, `Title ${id}`);
+    },
+    graph: async (id) => {
+      graphed.push(id);
+      return {
+        id,
+        directory: "/workspace/demo",
+        fetchedAt: new Date(0).toISOString(),
+        dependencies: [],
+        dependents: [],
+        truncated: false,
+        scope: "Immediate relationships",
+      };
+    },
+  });
+  await model.refresh();
+  await model.inspect("demo-1");
+  await model.inspectRelated("demo-2");
+  expect(model.state.detail?.id).toBe("demo-2");
+  model.back();
+  await Bun.sleep(0);
+  expect(model.state.detail?.id).toBe("demo-1");
+  expect(shown).toEqual(["demo-1", "demo-2", "demo-1"]);
+  expect(graphed).toEqual(shown);
+  model.back();
+  expect(model.state.inspecting).toBe(false);
+});
+
+test("relationship failure stays local to graph detail and stale graph reads are aborted", async () => {
+  const old = deferred<{
+    id: string;
+    directory: string;
+    fetchedAt: string;
+    dependencies: [];
+    dependents: [];
+    truncated: false;
+    scope: string;
+  }>();
+  let oldSignal: AbortSignal | undefined;
+  const model = createWorkbench({
+    list: async () => result(),
+    show: async (id) => issue(id),
+    graph: (id, signal) => {
+      if (id === "demo-1") {
+        oldSignal = signal;
+        return old.promise;
+      }
+      throw new Error("Relationship backend unavailable");
+    },
+  });
+  await model.refresh();
+  const first = model.inspect("demo-1");
+  await model.inspect("demo-2");
+  expect(oldSignal?.aborted).toBe(true);
+  expect(model.state.detail?.id).toBe("demo-2");
+  expect(model.state.graphError).toContain("Relationship backend unavailable");
+  old.resolve({
+    id: "demo-1",
+    directory: "/workspace/demo",
+    fetchedAt: new Date(0).toISOString(),
+    dependencies: [],
+    dependents: [],
+    truncated: false,
+    scope: "stale",
+  });
+  await first;
+  expect(model.state.neighborhood).toBeUndefined();
+  model.dispose();
+});

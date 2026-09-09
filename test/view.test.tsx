@@ -26,6 +26,8 @@ async function render(
   const pending: Promise<unknown>[] = [];
   const [focused, setFocused] = createSignal(true);
   const attached: string[] = [];
+  const alerts: string[] = [];
+  const prompts: string[] = [];
   let host: BoxRenderable;
   // Only the host methods this view consumes. The source is checked against the full SDK.
   const context = {
@@ -37,7 +39,21 @@ async function render(
         onCleanup(() => layers.delete(factory));
       },
     },
-    ui: { format: { path: (path: string) => path }, toast: { show: () => {} } },
+    ui: {
+      format: { path: (path: string) => path },
+      toast: { show: () => {} },
+      dialog: {
+        alert: async ({ message }: { message: string }) => {
+          alerts.push(message);
+        },
+        prompt: async () => prompts.shift(),
+        select: async <Value,>({
+          options,
+        }: {
+          options: Array<{ value: Value }>;
+        }) => options[0]?.value,
+      },
+    },
   } as unknown as Context;
   const screen = await testRender(
     () => {
@@ -97,7 +113,17 @@ async function render(
     await screen.mockMouse.click(target.x + 1, target.y);
     await screen.flush();
   }
-  return { ...screen, attached, key, click, setFocused, focused, layers };
+  return {
+    ...screen,
+    attached,
+    alerts,
+    prompts,
+    key,
+    click,
+    setFocused,
+    focused,
+    layers,
+  };
 }
 
 function enabled(value: KeymapLayer["enabled"]) {
@@ -473,6 +499,114 @@ test("Start is explicit, then displays the durable link and refreshes Ready", as
   initialLink.resolve([]);
   await screen.renderer.idle();
   expect(screen.captureCharFrame()).toContain("Linked: demo-1 · started");
+  expect(screen.captureCharFrame()).toContain("Nothing ready");
+});
+
+test("detail explains relationships and supports mouse, keyboard, and Back navigation", async () => {
+  const issues = [issue(), issue("demo-2", "Related work")];
+  const screen = await render(
+    {
+      list: async () => result(issues),
+      show: async (id) => issues.find((item) => item.id === id)!,
+      graph: async (id) => ({
+        id,
+        directory: "/workspace/demo",
+        fetchedAt: new Date(0).toISOString(),
+        dependencies:
+          id === "demo-1"
+            ? [
+                {
+                  id: "demo-2",
+                  title: "Related work",
+                  status: "open",
+                  type: "blocks",
+                  available: true,
+                  canInspect: true,
+                },
+              ]
+            : [],
+        dependents: [],
+        truncated: false,
+        scope: "Relationships are advisory, not Ready eligibility.",
+      }),
+    },
+    80,
+    undefined,
+    36,
+  );
+  await screen.waitForFrame((frame) => frame.includes("demo-1"));
+  await screen.key("RETURN");
+  await screen.waitForFrame((frame) => frame.includes("Prerequisites"));
+  expect(screen.captureCharFrame()).toContain("Related work");
+  await screen.click("beads-dependency-0");
+  await screen.waitForFrame((frame) =>
+    frame.includes("No immediate relationships"),
+  );
+  expect(screen.captureCharFrame()).toContain("Related work");
+  await screen.key("ESCAPE");
+  await screen.waitForFrame((frame) => frame.includes("Prerequisites"));
+  await screen.key("g");
+  await screen.waitForFrame((frame) => frame.includes("Related work"));
+  expect(screen.captureCharFrame()).toContain("demo-2");
+});
+
+test("session work brief is inspectable and Finish collects explicit evidence", async () => {
+  let closed = false;
+  let submitted:
+    { summary: string; validation: string; artifacts: string } | undefined;
+  const linked: WorkLink = {
+    id: "demo-1",
+    sessionID: "ses-alpha",
+    actor: "opencode:ses-alpha",
+    phase: "started",
+    directory: "/workspace/demo",
+    workspaceID: null,
+  };
+  const screen = await render(
+    {
+      list: async () => result(closed ? [] : [issue()]),
+      show: async () => issue(),
+    },
+    80,
+    {
+      links: async () => (closed ? [] : [linked]),
+      start: async () => {
+        throw new Error("Unexpected start");
+      },
+      brief: async () => ({
+        directory: "/workspace/demo",
+        fetchedAt: new Date(0).toISOString(),
+        text: "BEADS WORK BRIEF\nActive demo-1",
+        bytes: 36,
+        truncated: false,
+        activeIDs: ["demo-1"],
+        omitted: 0,
+        warnings: [],
+      }),
+      finish: async (_id, evidence) => {
+        submitted = evidence;
+        closed = true;
+        return {
+          issue: { ...issue(), status: "closed" },
+          evidence,
+          newlyReady: [issue("demo-2")],
+          warnings: [],
+        };
+      },
+    },
+  );
+  await screen.waitForFrame((frame) => frame.includes("Work brief"));
+  await screen.key("b");
+  expect(screen.alerts[0]).toContain("Active demo-1");
+  await screen.key("RETURN");
+  await screen.waitForFrame((frame) => frame.includes("Finish"));
+  screen.prompts.push("Built workflow", "bun test passed", "commit abc");
+  await screen.key("x");
+  expect(submitted).toEqual({
+    summary: "Built workflow",
+    validation: "bun test passed",
+    artifacts: "commit abc",
+  });
   expect(screen.captureCharFrame()).toContain("Nothing ready");
 });
 

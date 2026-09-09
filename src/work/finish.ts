@@ -21,11 +21,6 @@ export interface FinishHost extends Pick<
     id: string,
   ): Effect.Effect<FinishReceipt | null, BeadsError>;
   saveReceipt(receipt: FinishReceipt): Effect.Effect<void, BeadsError>;
-  retire(
-    sessionID: string,
-    id: string,
-    promptID: string,
-  ): Effect.Effect<void, BeadsError>;
 }
 export interface FinishReader {
   show(id: string): Effect.Effect<Issue, BeadsError>;
@@ -35,6 +30,7 @@ export interface FinishWriter {
   close(
     id: string,
     actor: string,
+    sessionID: string,
     reason: string,
   ): Effect.Effect<void, BeadsError>;
 }
@@ -86,7 +82,12 @@ export function createFinish(
       );
     yield* checkOwner(issue, receipt.actor);
     yield* host.validate(receipt.sessionID);
-    yield* writer.close(receipt.id, receipt.actor, receipt.reason);
+    yield* writer.close(
+      receipt.id,
+      receipt.actor,
+      receipt.sessionID,
+      receipt.reason,
+    );
     const closed = yield* reader.show(receipt.id);
     if (!matchesClose(closed, receipt))
       return yield* Effect.fail(

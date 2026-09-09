@@ -13,7 +13,7 @@ export function storageCall<A>(operation: string, effect: Effect.Effect<A>) {
           Effect.fail(
             new BeadsError(
               "handoff_failed",
-              `Could not ${operation} the saved Beads link. Retry after storage recovers; existing claims have not been rolled back.`,
+              `Could not ${operation} saved Beads state. Retry after storage recovers; existing Beads mutations have not been rolled back.`,
             ),
           ),
         ),

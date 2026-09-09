@@ -6,6 +6,8 @@ import { workHost } from "../src/work/opencode";
 import { createWork, type WorkHost } from "../src/work/service";
 import type { StoredWorkLink } from "../src/work/schema";
 import { deferred, issue } from "./fixtures";
+import { finishStore } from "../src/work/finish-storage";
+import type { FinishReceipt } from "../src/work/intelligence-schema";
 
 const link: StoredWorkLink = {
   id: "demo-1",
@@ -127,6 +129,66 @@ test("storage defects are typed at the adapter seam; cancellation stays interrup
   await expect(
     Effect.runPromise(scanFailure.list(link.sessionID)),
   ).rejects.toMatchObject({ code: "handoff_failed" });
+});
+
+test("retirement removes legacy fallback first and preserves a newer claim generation", async () => {
+  const { values, storage } = memory();
+  const store = linkStore(storage, { directory: link.directory });
+  values.set(`work/${link.sessionID}`, link);
+  await Effect.runPromise(store.save(link));
+  await Effect.runPromise(store.retire(link.sessionID, link.id, link.promptID));
+  expect(
+    await Effect.runPromise(store.load(link.sessionID, link.id)),
+  ).toBeNull();
+  expect(values.has(`work/${link.sessionID}`)).toBe(false);
+
+  const newer = { ...link, promptID: "msg-new-generation" };
+  await Effect.runPromise(store.save(newer));
+  await expect(
+    Effect.runPromise(store.retire(link.sessionID, link.id, link.promptID)),
+  ).rejects.toMatchObject({ code: "ownership_conflict" });
+  expect(
+    (await Effect.runPromise(store.load(link.sessionID, link.id)))?.promptID,
+  ).toBe(newer.promptID);
+});
+
+test("finish receipts survive adapter recreation and stay location-scoped", async () => {
+  const { storage } = memory();
+  const receipt: FinishReceipt = {
+    id: link.id,
+    sessionID: link.sessionID,
+    directory: link.directory,
+    workspaceID: null,
+    actor: link.actor,
+    promptID: link.promptID,
+    evidence: {
+      summary: "Completed",
+      validation: "Tests passed",
+      artifacts: "commit abc",
+    },
+    reason: "Completion evidence",
+    readyBefore: ["demo-existing"],
+    phase: "prepared",
+  };
+  await Effect.runPromise(
+    finishStore(storage, { directory: link.directory }).saveReceipt(receipt),
+  );
+  expect(
+    await Effect.runPromise(
+      finishStore(storage, { directory: link.directory }).loadReceipt(
+        link.sessionID,
+        link.id,
+      ),
+    ),
+  ).toEqual(receipt);
+  expect(
+    await Effect.runPromise(
+      finishStore(storage, { directory: "/other" }).loadReceipt(
+        link.sessionID,
+        link.id,
+      ),
+    ),
+  ).toBeNull();
 });
 
 test("a production-adapter storage defect after admission preserves one prompt and claim", async () => {

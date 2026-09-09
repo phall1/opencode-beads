@@ -209,6 +209,7 @@ export default OpenCodeDriver.use(
           "beads-close",
           "beads-start",
           "beads-attach",
+          "beads-work-brief",
           "beads-back",
           "beads-refresh",
         ]) {
@@ -242,7 +243,14 @@ export default OpenCodeDriver.use(
       yield* focusPane("right");
       yield* ui.enter();
       yield* ui.waitFor("Acceptance criteria");
+      yield* ui.waitFor("Dependents");
       yield* Effect.log(yield* ui.screenshot("beads-detail"));
+      yield* click("beads-dependent-0");
+      yield* ui.waitFor("Recover claims after a reload");
+      yield* ui.waitFor("Prerequisites");
+      yield* Effect.log(yield* ui.screenshot("beads-related-detail"));
+      yield* ui.press("escape");
+      yield* ui.waitFor("Polish the Beads workbench");
       yield* click("beads-attach");
       yield* ui.waitFor("drv-ready added to conversation context");
       const sessions = yield* opencode.session.list();
@@ -261,6 +269,10 @@ export default OpenCodeDriver.use(
       yield* ui.waitFor("Nothing ready");
       yield* ui.waitFor("Claimed work received.");
       yield* Effect.log(yield* ui.screenshot("beads-started"));
+      yield* click("beads-work-brief");
+      yield* ui.waitFor("BEADS WORK BRIEF");
+      yield* Effect.log(yield* ui.screenshot("beads-work-brief"));
+      yield* ui.press("escape");
       yield* bd(artifacts, [
         "create",
         "Close work with evidence",
@@ -295,6 +307,41 @@ export default OpenCodeDriver.use(
         { timeout: 10_000 },
       );
       yield* Effect.log(yield* ui.screenshot("beads-narrow"));
+      yield* click("bead-row-drv-ready");
+      yield* ui.waitFor("x Finish");
+      yield* click("beads-finish");
+      yield* ui.waitFor("What was completed?");
+      yield* ui.type("Implemented the workbench milestone");
+      yield* ui.enter();
+      yield* ui.waitFor("What evidence proves the acceptance criteria?");
+      yield* ui.type("Compiled Drive and native checks passed");
+      yield* ui.enter();
+      yield* ui.waitFor("Artifacts for drv-ready");
+      yield* ui.type("beads-finished screenshot");
+      yield* ui.enter();
+      yield* ui.waitFor("closed with evidence");
+      yield* ui.press("1");
+      yield* ui.waitFor("drv-blocked");
+      yield* Effect.log(yield* ui.screenshot("beads-finished"));
+      const completed = JSON.parse(
+        yield* bd(artifacts, [
+          "--readonly",
+          "--json",
+          "list",
+          "--all",
+          "--id=drv-ready",
+          "--limit",
+          "1",
+          "--no-pager",
+        ]),
+      ) as Array<{
+        status: string;
+        close_reason: string;
+        closed_by_session: string;
+      }>;
+      assert.equal(completed[0]?.status, "closed");
+      assert.match(completed[0]?.close_reason ?? "", /Compiled Drive/);
+      assert.equal(completed[0]?.closed_by_session, sessionID);
       yield* click("beads-close");
       yield* closed();
     }).pipe(

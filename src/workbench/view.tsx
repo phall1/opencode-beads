@@ -4,6 +4,7 @@ import type { BoxRenderable } from "@opentui/core";
 import { createWorkbench, type Reader, type Workbench } from "./model";
 import { displayText, errorMessage, readableText } from "../text";
 import type { Issue } from "../beads/schema";
+import type { Relation } from "../beads/graph-schema";
 import { WorkControls, type WorkActions } from "./work-actions";
 import { IssueList } from "./list";
 import { Action } from "./action";
@@ -61,6 +62,10 @@ export function WorkbenchView(props: WorkbenchProps) {
     return model.inspect(id);
   }
   const clickSearch = afterMouseDispatch(search);
+  const relations = () => [
+    ...(model.state.neighborhood?.dependencies ?? []),
+    ...(model.state.neighborhood?.dependents ?? []),
+  ];
   const preview = () => {
     if (width() < 48 || height() < 28 || model.state.phase !== "ready")
       return undefined;
@@ -89,6 +94,21 @@ export function WorkbenchView(props: WorkbenchProps) {
     } finally {
       setAttaching(false);
     }
+  }
+
+  async function chooseRelationship() {
+    const available = relations().filter((item) => item.canInspect);
+    if (!available.length) return;
+    const id = await props.context.ui.dialog.select({
+      title: "Inspect related bead",
+      placeholder: "Choose a prerequisite or dependent",
+      options: available.map((item) => ({
+        title: `${item.type} · ${item.id}`,
+        description: `${item.status} · ${displayText(item.title)}`,
+        value: item.id,
+      })),
+    });
+    if (id) await model.inspectRelated(id);
   }
 
   props.context.keymap.layer(() => ({
@@ -127,6 +147,13 @@ export function WorkbenchView(props: WorkbenchProps) {
         enabled: () =>
           Boolean(model.state.detail && props.attach) && !attaching(),
         run: attach,
+      },
+      {
+        id: "beads.relationships",
+        title: "Inspect a related bead",
+        bind: "g",
+        enabled: () => relations().some((item) => item.canInspect),
+        run: chooseRelationship,
       },
     ],
   }));
@@ -229,6 +256,21 @@ export function WorkbenchView(props: WorkbenchProps) {
       <Show when={model.state.inspecting}>
         <IssueHeading model={model} context={props.context} />
       </Show>
+      <Show
+        when={
+          model.state.inspecting &&
+          relations().some((relation) => relation.canInspect)
+        }
+      >
+        <box flexDirection="row" marginTop={1} flexShrink={0}>
+          <Action
+            context={props.context}
+            id="beads-relationships"
+            label="g Related"
+            run={chooseRelationship}
+          />
+        </box>
+      </Show>
       <Show when={props.work}>
         {(work) => (
           <WorkControls
@@ -299,6 +341,7 @@ export function WorkbenchView(props: WorkbenchProps) {
           context={props.context}
           width={width() - 4}
           focused={props.focused && !searching()}
+          inspectRelated={model.inspectRelated}
         />
       </Show>
       <WorkbenchFooter
@@ -352,6 +395,7 @@ function IssueDetail(props: {
   context: Context;
   width: number;
   focused: boolean;
+  inspectRelated(id: string): Promise<void>;
 }) {
   const theme = props.context.theme;
   return (
@@ -386,7 +430,7 @@ function IssueDetail(props: {
                 ["Owner", issue().assignee],
                 ["Labels", issue().labels.join(" · ")],
                 [
-                  "Dependencies",
+                  "Recorded dependencies",
                   issue()
                     .dependencies.map(
                       (dep) => `${dep.type} → ${dep.depends_on_id}`,
@@ -407,10 +451,105 @@ function IssueDetail(props: {
                 </Show>
               )}
             </For>
+            <RelationshipDetail
+              context={props.context}
+              model={props.model}
+              inspect={props.inspectRelated}
+            />
           </box>
         )}
       </Show>
     </scrollbox>
+  );
+}
+
+function RelationshipDetail(props: {
+  context: Context;
+  model: Workbench;
+  inspect(id: string): Promise<void>;
+}) {
+  const theme = props.context.theme;
+  return (
+    <box flexDirection="column">
+      <text fg={theme.text.subdued}>Relationships</text>
+      <Show when={props.model.state.graphPhase === "loading"}>
+        <text fg={theme.text.subdued}>Loading immediate relationships…</text>
+      </Show>
+      <Show when={props.model.state.graphError}>
+        <text fg={theme.text.feedback.error.default}>
+          {props.model.state.graphError}
+        </text>
+      </Show>
+      <Show when={props.model.state.neighborhood}>
+        {(graph) => (
+          <box flexDirection="column">
+            <RelationGroup
+              context={props.context}
+              title="Prerequisites"
+              kind="dependency"
+              items={graph().dependencies}
+              inspect={props.inspect}
+            />
+            <RelationGroup
+              context={props.context}
+              title="Dependents"
+              kind="dependent"
+              items={graph().dependents}
+              inspect={props.inspect}
+            />
+            <Show
+              when={!graph().dependencies.length && !graph().dependents.length}
+            >
+              <text fg={theme.text.subdued}>No immediate relationships.</text>
+            </Show>
+            <Show when={graph().truncated}>
+              <text fg={theme.text.feedback.warning.default}>
+                Relationship results are capped; inspect with beads_graph for
+                the bounded response.
+              </text>
+            </Show>
+            <text fg={theme.text.subdued}>{graph().scope}</text>
+          </box>
+        )}
+      </Show>
+    </box>
+  );
+}
+
+function RelationGroup(props: {
+  context: Context;
+  title: string;
+  kind: string;
+  items: Relation[];
+  inspect(id: string): Promise<void>;
+}) {
+  const click = (item: Relation) =>
+    afterMouseDispatch(() => {
+      if (item.canInspect) return props.inspect(item.id);
+    });
+  return (
+    <Show when={props.items.length}>
+      <box flexDirection="column" marginTop={1}>
+        <text fg={props.context.theme.text.subdued}>{props.title}</text>
+        <For each={props.items}>
+          {(item, index) => (
+            <text
+              id={`beads-${props.kind}-${index()}`}
+              fg={
+                item.canInspect
+                  ? props.context.theme.text.action.secondary.default
+                  : props.context.theme.text.subdued
+              }
+              onMouseDown={click(item)}
+            >
+              {readableText(
+                `${item.type} · ${item.status}\n${item.id} — ${item.title}`,
+              )}
+            </text>
+          )}
+        </For>
+      </box>
+    </Show>
   );
 }
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Issue, IssueID } from "../beads/schema";
-import { SessionQuery } from "./schema";
+import { SessionID, SessionQuery } from "./schema";
 
 export const BriefQuery = SessionQuery;
 export const WorkBrief = z.object({
@@ -8,6 +8,7 @@ export const WorkBrief = z.object({
   fetchedAt: z.string(),
   text: z.string(),
   bytes: z.number().int(),
+  truncated: z.boolean(),
   activeIDs: IssueID.array(),
   omitted: z.number().int(),
   warnings: z.string().array(),
@@ -34,7 +35,7 @@ export const FinishResult = z.object({
 export type FinishResult = z.infer<typeof FinishResult>;
 export const FinishReceipt = z.object({
   id: IssueID,
-  sessionID: z.string(),
+  sessionID: SessionID,
   directory: z.string(),
   workspaceID: z.string().nullable(),
   actor: z.string(),

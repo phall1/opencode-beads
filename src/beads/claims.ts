@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { z } from "zod";
 import { IssueID } from "./schema";
 import { BeadsError, runBeads, type ProcessOptions } from "./process";
+import { SessionID } from "../work/schema";
 
 const Actor = z
   .string()
@@ -40,11 +41,12 @@ export function createClaims(options: ProcessOptions) {
   return {
     claim: (id: string, actor: string) => execute("update", id, actor),
     heartbeat: (id: string, actor: string) => execute("heartbeat", id, actor),
-    close: (id: string, actor: string, reason: string) =>
+    close: (id: string, actor: string, sessionID: string, reason: string) =>
       Effect.tryPromise({
         try: async (signal) => {
           const validID = IssueID.parse(id);
           const validActor = Actor.parse(actor);
+          const validSessionID = SessionID.parse(sessionID);
           await runBeads(
             options,
             [
@@ -53,7 +55,7 @@ export function createClaims(options: ProcessOptions) {
               "--actor",
               validActor,
               "--session",
-              validActor.replace(/^opencode:/, ""),
+              validSessionID,
               "--reason",
               reason,
               "--json",

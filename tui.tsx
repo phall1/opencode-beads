@@ -20,6 +20,8 @@ function connection(
         rpc.list(query, { location, signal }),
       show: (id: string, signal: AbortSignal) =>
         rpc.show({ id }, { location, signal }),
+      graph: (id: string, signal: AbortSignal) =>
+        rpc.graph({ id, limit: 30 }, { location, signal }),
     },
   };
 }
@@ -93,6 +95,16 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
               start: (id, signal) =>
                 rpc.start(
                   { id, sessionID },
+                  { location: connected.location, signal },
+                ),
+              brief: (signal) =>
+                rpc.context(
+                  { sessionID },
+                  { location: connected.location, signal },
+                ),
+              finish: (id, evidence, signal) =>
+                rpc.finish(
+                  { id, sessionID, evidence },
                   { location: connected.location, signal },
                 ),
             }}

@@ -34,19 +34,25 @@ and cleans up; use `KEEP_BEADS_FIXTURE=1` to retain it for debugging.
   and rejects late responses. Process/real-Beads checks inject a conflicting
   `BEADS_DIR`.
 - **Beads:** disposable real databases verify ready/blocked/in-progress work,
-  read-only lookup, competing actors, claim retry, foreign ownership/heartbeat
-  rejection, and closed-state refusal.
+  read-only lookup, typed blocking/annotation relationships, authoritative
+  recommendations, competing actors, claim retry, foreign ownership/heartbeat
+  rejection, evidence close provenance, newly Ready observation, and closed-state
+  refusal.
 - **Handoffs:** tests cover concurrent clicks, old/new plugin executors, lost
   prompt responses, module recreation, uncertain writes, and location changes.
-  Lease tests distinguish saved links from activity and stop renewal when
-  execution ends during a read.
-- **UI:** model tests control completion order and selection. Native OpenTUI tests
-  exercise keyboard input, search, context, Start, refresh, narrow layouts, and
-  cleanup. The keymap driver is a test double; host arbitration with other plugins
-  still needs in-app acceptance.
-- **Host:** the real Effect SDK host uses a fixture `bd` for registration, RPC
-  validation/errors, routing, and durable handoff. It does not drive model-invoked
-  tool executors or prove cancellation across the full remote transport.
+  Finish receipts cover immutable evidence, lost close responses, owner races,
+  matching-generation retirement, legacy fallback removal, and storage reloads.
+  Lease tests distinguish saved links from activity and stop renewal when execution
+  ends during a read.
+- **UI:** model tests control completion order, selection, graph failures, and
+  relationship Back navigation. Native OpenTUI tests exercise keyboard input,
+  search, context, Start, Finish evidence dialogs, work briefs, graph navigation,
+  refresh, narrow layouts, and cleanup. The keymap driver is a test double; host
+  arbitration with other plugins still needs in-app acceptance.
+- **Host:** the real Effect SDK host uses a fixture `bd` for registration, all
+  shared RPC validation/errors, routing, automatic-context assembly, graph/next,
+  finish, and durable handoff. It does not drive model-invoked tool executors or
+  prove cancellation across the full remote transport.
 
 Multi-bead regressions cover independent prompt IDs/retries, canceled lock holders,
 paginated storage and legacy reads, and location isolation. Storage-defect tests
@@ -62,9 +68,10 @@ Beads database. `scripts/tui-drive.ts` checks `/beads` autocomplete before openi
 the workbench, then exercises home/session toggling, mouse tabs and rows,
 composer/panel focus, search recovery and clearing, fullscreen round-trips, detail,
 passive context attachment followed by Start without an extra model turn,
-two independent Claim & start actions in one session, prompt responses, Ready
-refresh, In progress, host-dragged 24/40-column side panels, and a 60-column
-fullscreen view. Drive typechecks the scenario before execution.
+two independent Claim & start actions in one session, prompt responses, automatic
+work-brief inspection, typed relationship navigation with Back, evidence-backed
+Finish, newly Ready refresh, In progress, host-dragged 24/40-column side panels,
+and a 60-column fullscreen view. Drive typechecks the scenario before execution.
 
 Native regressions cover direct clicks from composer ownership, noninteractive
 loading/error lists, long-title control bounds at 24/40 columns, and canceled/stale
@@ -84,3 +91,9 @@ Recheck installed-package and native rendering behavior after dependency upgrade
 This Beads build's `show --readonly` writes `last-touched`; full lookup therefore
 uses `list --all --id`. Its proxied-server mode rejects strict readonly and the
 plugin surfaces that failure. Other Beads versions/backends are unverified.
+
+This Beads build performs close ownership validation before the close transaction;
+there is no atomic assignee precondition. The plugin narrows, but cannot remove,
+that cross-process race. `--session` is provenance only. `on_close` hooks run even
+with `--sandbox`; a failed hook does not fail a committed close, so completion is
+verified from persisted status, actor, reason, and session.

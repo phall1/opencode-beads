@@ -116,6 +116,11 @@ function classifyFailure(
       "ownership_conflict",
       `Bead is owned by another actor. ${displayText(stderr).slice(0, 500)}`,
     );
+  if (/cannot close.*assignee is .*actor is/i.test(stderr))
+    return new BeadsError(
+      "ownership_conflict",
+      `Bead is owned by another actor. ${displayText(stderr).slice(0, 500)}`,
+    );
   if (/issue not claimable|cannot claim.*template/i.test(stderr))
     return new BeadsError(
       "not_claimable",

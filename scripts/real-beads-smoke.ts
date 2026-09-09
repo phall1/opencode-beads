@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createReader } from "../src/beads/reader";
 import { createClaims } from "../src/beads/claims";
 import { Effect } from "effect";
+import { createRelations } from "../src/beads/relations";
 
 // A disposable HOME and repository keep fixture creation away from user Beads state.
 const directory = await scratch("beads-real-");
@@ -87,6 +88,15 @@ try {
     "Current work",
     "--silent",
   ]);
+  const annotation = await run([
+    "bd",
+    "create",
+    "Keep a related note",
+    "--description",
+    "Annotation edges are not blockers",
+    "--silent",
+  ]);
+  await run(["bd", "dep", "add", annotation, ready, "--type", "related"]);
   const other = join(directory, "other");
   await mkdir(other);
   await run(
@@ -131,7 +141,7 @@ try {
   });
   assert.deepEqual(
     readyPage.issues.map((issue) => issue.id),
-    [ready],
+    [ready, annotation],
   );
   assert.equal(
     (await Effect.runPromise(reader.list({ view: "in_progress", limit: 100 })))
@@ -158,6 +168,32 @@ try {
   );
   assert.equal(await Effect.runPromise(reader.ready(ready)), true);
   assert.equal(await Effect.runPromise(reader.ready(blocked)), false);
+  const relations = createRelations(
+    { directory: repo, executable: wrapper },
+    reader,
+  );
+  const graph = await Effect.runPromise(
+    relations.graph({ id: ready, limit: 30 }),
+  );
+  assert.equal(
+    graph.dependents.find((item) => item.id === blocked)?.type,
+    "blocks",
+  );
+  assert.equal(
+    graph.dependents.find((item) => item.id === annotation)?.type,
+    "related",
+  );
+  const recommendation = await Effect.runPromise(relations.next({ limit: 2 }));
+  assert.equal(recommendation.items[0]?.issue.id, ready);
+  assert.match(
+    recommendation.items[0]?.reasons.join(" ") ?? "",
+    /1 direct non-closed blocking/,
+  );
+  assert.equal(
+    await readFile(marker, "utf8").catch(() => undefined),
+    before,
+    "relationship reads changed last-touched",
+  );
   const claims = createClaims({ directory: repo, executable: wrapper });
   const actors = ["opencode:ses-alpha", "opencode:ses-beta"];
   const race = await Promise.allSettled(
@@ -180,20 +216,35 @@ try {
     Effect.runPromise(claims.claim(ready, "opencode:ses-foreign")),
     { code: "ownership_conflict" },
   );
-  await run([
-    "bd",
-    "close",
-    ready,
-    "--actor",
-    claimed.assignee,
-    "--reason",
-    "Isolated smoke check complete",
-  ]);
+  const closeReason = "Isolated smoke check complete\nValidation: native smoke";
+  const readyBeforeClose = await Effect.runPromise(reader.readyWork());
+  assert.deepEqual(
+    readyBeforeClose.map((item) => item.id),
+    [annotation],
+  );
+  await Effect.runPromise(
+    claims.close(
+      ready,
+      claimed.assignee,
+      claimed.assignee.replace(/^opencode:/, ""),
+      closeReason,
+    ),
+  );
   await assert.rejects(
     Effect.runPromise(claims.claim(ready, claimed.assignee)),
     { code: "not_claimable" },
   );
-  assert.equal((await Effect.runPromise(reader.show(ready))).status, "closed");
+  const completed = await Effect.runPromise(reader.show(ready));
+  assert.equal(completed.status, "closed");
+  assert.equal(completed.close_reason, closeReason);
+  assert.equal(
+    completed.closed_by_session,
+    claimed.assignee.replace(/^opencode:/, ""),
+  );
+  assert.deepEqual(
+    (await Effect.runPromise(reader.readyWork())).map((item) => item.id).sort(),
+    [blocked, annotation].sort(),
+  );
   console.log(
     JSON.stringify(
       {
@@ -202,8 +253,9 @@ try {
         ready,
         blocked,
         progress,
+        annotation,
         checks:
-          "ready semantics; workspace isolation; non-mutating reads; one winning claim; same-owner retry; heartbeat; closed-state refusal",
+          "ready semantics; typed relationships and recommendations; workspace isolation; non-mutating reads; one winning claim; same-owner retry; heartbeat; evidence close provenance; newly Ready observation; closed-state refusal",
       },
       null,
       2,

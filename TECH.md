@@ -28,8 +28,12 @@ The server runs `bd` with an argument array, finite timeout/output limits, and
 interruption passed through `Effect.tryPromise` to `execFile`. Keep Effects lazy;
 the host owns execution, interruption, and Scope. Never start a nested runtime.
 Zod schemas validate public inputs and required response fields; tolerate unknown
-Beads fields. Strip terminal control characters from display text, preserving IDs
-for lookup. The TUI has no subprocess or database access.
+Beads fields. Shared RPC stays on Standard Schema because the remote TUI client
+requires OpenCode's portable RPC definition; Effect codecs are supported by the
+server/tool schema boundary but intentionally excluded from that portable client
+contract. Runtime workflows remain lazy Effects. Strip terminal control characters
+from display text, preserving IDs for lookup. The TUI has no subprocess or database
+access.
 
 Resolve agent tools against their invoking session. The TUI waits for its session
 record and sends its explicit location; only non-session views use the default.
@@ -118,7 +122,12 @@ briefs. Keep the existing claim/start storage schema and legacy RPCs compatible.
   on retry, then retire matching v2 and legacy links without resurrecting legacy
   work. Preserve receipts if cleanup/Ready refresh fails.
 - Store human-readable evidence in the native close reason; verify the live result.
-  Native command ownership/race limits must be documented from fixture evidence.
+  `bd close` checks actor ownership before, not inside, its close transaction;
+  `--session` records provenance rather than adding an ownership predicate. The
+  plugin checks ownership before preparation and again immediately before close,
+  but cannot eliminate a reclaim race with another process. Native `on_close`
+  hooks still run under `--sandbox` and are best-effort, so retries reconcile the
+  persisted reason/session instead of trusting process success alone.
   Ready snapshots use `bd`'s complete bounded query, not a locally reconstructed
   scheduler. Return observed newly Ready work separately from closure success.
 - Relationship reads use native read-only dependency queries with validated output,

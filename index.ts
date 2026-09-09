@@ -11,6 +11,7 @@ import { workHost } from "./src/work/opencode";
 import { watchLeases } from "./src/work/leases";
 import { intelligence } from "./src/work/intelligence";
 import { addIntelligenceTools } from "./src/intelligence-tools";
+import { BeadsError } from "./src/beads/process";
 
 export default Plugin.define({
   id: "beads.server",
@@ -28,7 +29,8 @@ export default Plugin.define({
             insights.brief(input.sessionID).pipe(
               Effect.mapError((error) =>
                 call.error("unavailable", errorMessage(error), {
-                  code: "command_failed",
+                  code:
+                    error instanceof BeadsError ? error.code : "command_failed",
                 }),
               ),
             ),
