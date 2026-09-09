@@ -87,7 +87,7 @@ Ordered by usefulness in the daily **orient → choose → execute → finish** 
    retry-safe prompt admission, and execution-based leases. Dependency readiness
    is checked before claiming; the tested Beads cannot make that exact-ID check
    atomic with the claim. Reload during long tool execution has the lease
-   recovery limitation documented in README.md.
+   recovery limitation documented in TECH.md.
 2. **Finish with evidence** — review the change, capture validation, close the
    bead, and show newly unblocked work. Make finishing as easy as starting.
 3. **Dependency explanation** — “why is this blocked?” with navigable blockers,
