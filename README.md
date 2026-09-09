@@ -91,10 +91,12 @@ model activity. A long tool call spanning a reload can temporarily lose renewal.
 
 ### Dogfooding this repository
 
-`opencode.jsonc` loads `./`; this repository tracks real work with Beads prefix
+`opencode.jsonc` loads `./dev-plugin`; this repository tracks real work with Beads prefix
 `ocb`. Use `/beads` here to inspect the live backlog. A global installation must
-point to the same checkout rather than also loading a Git-installed copy with
-the same plugin ID. Beads configuration is tracked; the local Dolt database and
+point to this checkout's `dev-plugin` directory rather than also loading a Git-installed copy with
+the same plugin ID. The small entrypoint directory keeps database churn outside
+the recursive plugin watcher; imported source files still reload during development.
+Beads configuration is tracked; the local Dolt database and
 runtime files are ignored. Fresh clones require explicit Beads initialization
 or Dolt remote setup. The plugin never initializes a database for you.
 
@@ -125,6 +127,7 @@ Verified locally on macOS with:
 | Dependency                    | Tested version                           |
 | ----------------------------- | ---------------------------------------- |
 | OpenCode plugin + Effect SDK  | `0.0.0-beta-19365`                       |
+| Live CLI dogfood              | `0.0.0-beta-19378`                       |
 | Effect                        | `4.0.0-rc.112`                           |
 | OpenTUI core / Solid renderer | `0.5.11`                                 |
 | Solid                         | `1.9.12`                                 |
@@ -161,6 +164,7 @@ bun run check                         # types, complexity/lint, behavior tests
 bun run format:check
 bun run scripts/package-smoke.ts       # install tarball, load it, execute RPC in V2 host
 bun run scripts/real-beads-smoke.ts    # real bd; creates and removes isolated fixtures
+bun run test:tui                      # OpenCode Drive: real TUI + real bd, simulated LLM
 ```
 
 CI runs checks and installed-package verification on Linux and macOS. Real-Beads

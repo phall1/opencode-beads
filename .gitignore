@@ -1,5 +1,6 @@
 node_modules/
 coverage/
+.drive-output/
 *.tgz
 .DS_Store
 

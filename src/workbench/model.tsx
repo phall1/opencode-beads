@@ -1,4 +1,6 @@
 import { createStore } from "solid-js/store";
+// Keep this reactive module in the host's TSX transform pipeline so its store
+// shares the Solid runtime used by the rendered workbench.
 import type { Issue, ListQuery, ListResult, View } from "../beads/schema";
 import { errorMessage } from "../text";
 

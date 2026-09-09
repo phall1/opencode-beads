@@ -1,4 +1,5 @@
 bun.lock
 node_modules/
 coverage/
+.drive-output/
 .beads/

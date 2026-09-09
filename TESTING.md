@@ -60,3 +60,28 @@ failure mode, not merely to raise the test count.
 Manual live dogfooding in this repository exercised the model-invoked
 `beads_claim` tool on `ocb-hd7`, verifying its session actor and durable link.
 This is distinct from the isolated automated tests above.
+
+The live beta-19378 CLI was also opened in a real PTY against this session and
+repository. It reproduced an indefinitely loading list while the linked-bead
+footer succeeded. Moving the reactive state module from `.ts` to `.tsx` restored
+the list through the host's actual runtime transform; the same PTY then displayed
+the real Ready records. This is the acceptance regression for `ocb-0sp` and a
+now covered by the repeatable Drive scenario below.
+
+## Actual TUI regression with OpenCode Drive
+
+Run `bun run test:tui` after UI changes. `opencode-drive@2.1.0` launches the
+installed `opencode2` in isolation with a simulated LLM and a real disposable
+Beads database. `scripts/tui-drive.ts` exercises `/beads`, waits for a loaded
+record, inspects acceptance criteria, claims and starts work, waits for the
+prompt response and refreshed Ready state, switches to In progress, and captures
+a 60-column fullscreen view. Screenshots are emitted at each checkpoint. The
+Drive `run` command type-checks the Effect program before executing it.
+
+Requires compatible `opencode2` and `bd` on PATH. Run from the repository root;
+`BEADS_PLUGIN_DIRECTORY` optionally selects another plugin checkout for A/B
+testing. Set `OPENCODE_DRIVE_MEDIA_DIR` to choose the screenshot directory.
+The same script failed on `f3fb6fb` at the initial loaded-record wait and passed
+on the `.tsx` fix using CLI beta-19378. Source-only tests had passed both versions;
+this is why the real compiled TUI is a separate required gate. CI's default lane
+does not install the external OpenCode or Beads executables.

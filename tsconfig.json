@@ -12,5 +12,6 @@
     "types": ["bun"],
     "skipLibCheck": true
   },
-  "include": ["*.ts", "*.tsx", "src", "test", "scripts"]
+  "include": ["*.ts", "*.tsx", "src", "test", "scripts", "dev-plugin"],
+  "exclude": ["scripts/tui-drive.ts"]
 }

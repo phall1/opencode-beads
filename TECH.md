@@ -22,6 +22,7 @@ index.ts             Effect-native V2 registrations: RPC and agent tools
 server.ts            local-directory loader compatibility entrypoint
 tui.tsx              V2 terminal registrations: panel, route, slash command
 rpc.ts               shared, validated wire contract; no server imports
+dev-plugin/          narrow local dogfood entrypoints; excludes database churn
 src/beads/           Beads process execution, decoding, normalized records
 src/work/            claim/start orchestration, host adapter, lease lifecycle
 src/workbench/       asynchronous view state and native terminal presentation
@@ -65,6 +66,19 @@ The UI state uses Solid's store and Promise-based client, matching the host's
 terminal interface. The server uses `@opencode/plugin/effect`, pinned to Effect
 `4.0.0-rc.112`. The embedded `@opencode/sdk/effect` is a development dependency
 for real-host integration checks, not a second server embedded in the plugin.
+
+Reactive UI modules use `.tsx`, including the state module without JSX. In the
+compiled V2 CLI, `.ts` store imports bypassed the TSX runtime transform and the
+screen remained at Loading despite the completed request. A real CLI PTY
+reproduction on beta-19378 confirmed the failure and the `.tsx` fix; source-only
+render tests did not expose this runtime-identity mismatch. State logic and its
+complexity are unchanged by the rename.
+
+Dogfood configuration targets `dev-plugin/`, not the repository root. V2 watches
+configured directories recursively without ignoring `.beads` or `.git`, whereas
+imported source files are watched individually. Existing location scopes retain
+removed directory subscriptions until disposed; a running service can retain the
+old root watcher until its normal restart.
 
 The host owns panel sizing, focus isolation, and fullscreen toggling. Reactive
 keymap layers live inside mounted Solid views. Slot/route registrations are

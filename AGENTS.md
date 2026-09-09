@@ -19,6 +19,9 @@
 - Pin the beta OpenCode SDK and coordinate OpenTUI/Solid versions. Recheck the
   installed package and native rendering after host dependency upgrades.
 - Do not publish packages or create upstream PRs as part of routine development.
+- Use `bun run test:tui` (OpenCode Drive) for actual TUI acceptance after UI
+  changes. Inspect its screenshots; source-render tests alone do not exercise
+  the compiled host's runtime transforms. Keep all Drive fixtures isolated.
 
 ## Dogfood the workflow
 
@@ -29,7 +32,9 @@
   synchronization deliberate and the same `opencode:<sessionID>` actor for writes.
 - Keep discoveries and follow-up work in Beads; close completed work with concrete
   verification evidence. Beads owns readiness, including dependency ordering.
-- `opencode.jsonc` loads this checkout (`./`) for live testing. Avoid loading a
+- `opencode.jsonc` loads this checkout (`./dev-plugin`) for live testing. The small
+  entrypoint directory keeps Beads database writes outside the host's recursive
+  plugin watcher; imported source files are watched individually. Avoid loading a
   second installed copy with the same plugin ID. The global dogfood installation
   should point to this same checkout.
 - Beads' Dolt database and runtime files are local/ignored; tracked `.beads`
