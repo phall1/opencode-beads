@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import { scratch } from "./temp";
 import { join } from "node:path";
 import { createReader } from "../src/beads/reader";
+import { createClaims } from "../src/beads/claims";
 import { Effect } from "effect";
 
 // A disposable HOME and repository keep fixture creation away from user Beads state.
-const parent =
-  process.platform === "darwin" ? "/private/tmp/opencode" : tmpdir();
-const directory = await mkdtemp(join(parent, "beads-real-"));
+const directory = await scratch("beads-real-");
 const home = join(directory, "home");
 const repo = join(directory, "repo");
 await mkdir(home);
@@ -157,6 +156,44 @@ try {
     before,
     "inspection changed last-touched",
   );
+  assert.equal(await Effect.runPromise(reader.ready(ready)), true);
+  assert.equal(await Effect.runPromise(reader.ready(blocked)), false);
+  const claims = createClaims({ directory: repo, executable: wrapper });
+  const actors = ["opencode:ses-alpha", "opencode:ses-beta"];
+  const race = await Promise.allSettled(
+    actors.map((actor) => Effect.runPromise(claims.claim(ready, actor))),
+  );
+  assert.equal(
+    race.filter((outcome) => outcome.status === "fulfilled").length,
+    1,
+    "competing sessions both acquired the claim",
+  );
+  const claimed = await Effect.runPromise(reader.show(ready));
+  assert.ok(actors.includes(claimed.assignee));
+  assert.equal(claimed.status, "in_progress");
+  await Effect.runPromise(claims.claim(ready, claimed.assignee));
+  await Effect.runPromise(claims.heartbeat(ready, claimed.assignee));
+  await assert.rejects(
+    Effect.runPromise(claims.heartbeat(ready, "opencode:ses-foreign")),
+  );
+  await assert.rejects(
+    Effect.runPromise(claims.claim(ready, "opencode:ses-foreign")),
+    { code: "ownership_conflict" },
+  );
+  await run([
+    "bd",
+    "close",
+    ready,
+    "--actor",
+    claimed.assignee,
+    "--reason",
+    "Isolated smoke check complete",
+  ]);
+  await assert.rejects(
+    Effect.runPromise(claims.claim(ready, claimed.assignee)),
+    { code: "not_claimable" },
+  );
+  assert.equal((await Effect.runPromise(reader.show(ready))).status, "closed");
   console.log(
     JSON.stringify(
       {
@@ -166,7 +203,7 @@ try {
         blocked,
         progress,
         checks:
-          "ready excludes blockers/in-progress; views; full content; dependencies; last-touched preserved",
+          "ready semantics; workspace isolation; non-mutating reads; one winning claim; same-owner retry; heartbeat; closed-state refusal",
       },
       null,
       2,

@@ -21,6 +21,14 @@ the implementation.
 
 ## Test doubles are explicit
 
+Claim/start regressions cover concurrent clicks, overlapping old/new plugin
+executors, accepted-but-lost prompt responses, module recreation, uncertain
+writes, and pre-write location failures. Lease tests distinguish durable links
+from activity and stop a pending renewal when execution ends during its read.
+Real-Beads smoke races distinct actors, retries the winner, rejects a foreign
+claim/heartbeat, and verifies closed-state refusal. Native rendering exercises
+explicit Start and its resulting link/Ready refresh.
+
 - Process tests substitute a real executable for `bd`; it sees actual argv, cwd,
   environment, cancellation, and OS process limits. A separate real-`bd` smoke
   establishes that the CLI contract matches the tested version.
@@ -32,8 +40,8 @@ the implementation.
 - The model reader double controls completion order; it does not pretend to
   prove process behavior or Beads semantics.
 - The Effect SDK host uses a fixture `bd` executable so it can verify activation,
-  RPC validation, errors, and location routing without a mutable real database.
-  It does not yet drive model-invoked tool executors or prove cancellation across
+  RPC validation, errors, location routing, claim/start and stored linkage without
+  a mutable real database. It does not yet drive model-invoked tool executors or prove cancellation across
   the complete remote transport. Reader interruption tests establish the local
   Effect-to-process contract specifically.
 
@@ -48,3 +56,7 @@ retaining those generated workspaces for investigation.
 No automated check reads or initializes an existing user Beads database. Add
 regressions for concrete bugs; broaden testing when a change introduces a new
 failure mode, not merely to raise the test count.
+
+Manual live dogfooding in this repository exercised the model-invoked
+`beads_claim` tool on `ocb-hd7`, verifying its session actor and durable link.
+This is distinct from the isolated automated tests above.

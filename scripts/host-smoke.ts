@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, rm } from "node:fs/promises";
+import { scratch } from "./temp";
 import { join, resolve } from "node:path";
 
 async function hostCheck(directory: string, pluginDirectory: string) {
   const { OpenCode, AbsolutePath, Location } =
     await import("@opencode/sdk/effect");
   const { Effect } = await import("effect");
+  const { SessionMessage } = await import("@opencode/schema/session-message");
   const { Beads } = await import("../rpc");
   await Effect.runPromise(
     Effect.scoped(
@@ -38,6 +39,47 @@ async function hostCheck(directory: string, pluginDirectory: string) {
           assert.equal(page.issues[0]?.title, name);
           const detail = yield* rpc.show({ id: "demo-1" }, { location });
           assert.equal(detail.title, name);
+          const session = yield* host.session.create({
+            title: "Isolated claim/start check",
+            location,
+          });
+          assert.equal(
+            yield* rpc.linked({ sessionID: session.id }, { location }),
+            null,
+          );
+          const input = { sessionID: session.id, id: "demo-1" };
+          const started = yield* rpc.start(input, { location });
+          assert.equal(started.link.phase, "started");
+          assert.equal(started.issue.assignee, `opencode:${session.id}`);
+          assert.equal(
+            "prompt" in started.link,
+            false,
+            "private prompt leaked through RPC",
+          );
+          assert.deepEqual(yield* rpc.start(input, { location }), started);
+          assert.deepEqual(
+            yield* rpc.linked({ sessionID: session.id }, { location }),
+            started.link,
+          );
+          yield* host.session.interrupt({
+            sessionID: session.id,
+            continue: false,
+          });
+          const retryInput = {
+            sessionID: session.id,
+            id: SessionMessage.ID.create(),
+            text: "Isolated admission retry check",
+            resume: false,
+          };
+          const admitted = yield* host.session.prompt(retryInput);
+          assert.deepEqual(yield* host.session.prompt(retryInput), admitted);
+          const pending = yield* host.session.inbox.list({
+            sessionID: session.id,
+          });
+          assert.equal(
+            pending.filter((item) => item.id === retryInput.id).length,
+            1,
+          );
         }
         const broken = Location.Ref.make({
           directory: AbsolutePath.make(join(directory, "broken")),
@@ -49,7 +91,7 @@ async function hostCheck(directory: string, pluginDirectory: string) {
         assert.equal(failure.type, "unavailable");
         assert.deepEqual(failure.data, { code: "command_failed" });
         console.log(
-          "Effect SDK host: plugin activation, typed RPC list/detail, and two-location isolation passed.",
+          "Effect SDK host: installed plugin activation, two-location reads, claim/start, durable link, retry and typed errors passed.",
         );
       }),
     ),
@@ -57,16 +99,22 @@ async function hostCheck(directory: string, pluginDirectory: string) {
 }
 
 async function isolatedCheck(pluginDirectory: string) {
-  const parent =
-    process.platform === "darwin" ? "/private/tmp/opencode" : tmpdir();
-  const directory = await mkdtemp(join(parent, "beads-host-"));
+  const directory = await scratch("beads-host-");
   try {
     for (const name of ["alpha", "beta", "broken", "bin", "home"])
       await mkdir(join(directory, name));
     const executable = join(directory, "bin/bd");
     await Bun.write(
       executable,
-      `#!${process.execPath}\nif(process.cwd().endsWith('/broken')) { console.error('backend unavailable'); process.exit(1); } console.log(JSON.stringify({schema_version:1,data:[{id:'demo-1',title:process.cwd().split('/').pop(),priority:1,status:'open'}]}));`,
+      `#!${process.execPath}
+if(process.cwd().endsWith('/broken')) { console.error('backend unavailable'); process.exit(1); }
+const file = Bun.file('.claim.json');
+let issue = await file.exists() ? await file.json() : {id:'demo-1',title:process.cwd().split('/').pop(),priority:1,status:'open'};
+if(process.argv.includes('--claim')) {
+  issue = {...issue, status:'in_progress', assignee:process.argv[process.argv.indexOf('--actor')+1]};
+  await Bun.write('.claim.json', JSON.stringify(issue));
+}
+console.log(JSON.stringify({schema_version:1,data:[issue]}));`,
     );
     await chmod(executable, 0o755);
     const env = Object.fromEntries(

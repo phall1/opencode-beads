@@ -7,13 +7,14 @@ import { WorkbenchView } from "../src/workbench/view";
 import type { Reader } from "../src/workbench/model";
 import { deferred, issue, result } from "./fixtures";
 import type { ListResult } from "../src/beads/schema";
+import type { WorkActions } from "../src/workbench/work-actions";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function render(reader: Reader, width = 80) {
+async function render(reader: Reader, width = 80, work?: WorkActions) {
   const layers = new Set<() => KeymapLayer>();
   const pending: Promise<unknown>[] = [];
   const [focused, setFocused] = createSignal(true);
@@ -52,6 +53,7 @@ async function render(reader: Reader, width = 80) {
           reader={reader}
           directory="/workspace/demo"
           focused={focused()}
+          work={work}
           close={() => {}}
           attach={async (item) => {
             attached.push(item.id);
@@ -153,4 +155,43 @@ test("blurred panel shortcuts do not run; unmount releases its keymap layers", a
   expect(lists).toBe(2);
   screen.renderer.destroy();
   expect(screen.layers.size).toBe(0);
+});
+
+test("Start is explicit, then displays the durable link and refreshes Ready", async () => {
+  let started = false;
+  const initialLink = deferred<null>();
+  const screen = await render(
+    {
+      list: async () => result(started ? [] : [issue()]),
+      show: async () => issue(),
+    },
+    80,
+    {
+      linked: () => initialLink.promise,
+      start: async (id) => {
+        started = true;
+        return {
+          issue: issue(id),
+          link: {
+            id,
+            sessionID: "ses-alpha",
+            actor: "opencode:ses-alpha",
+            phase: "started",
+            directory: "/workspace/demo",
+            workspaceID: null,
+          },
+        };
+      },
+    },
+  );
+  await screen.waitForFrame((frame) => frame.includes("demo-1"));
+  expect(started).toBe(false);
+  screen.mockInput.pressEnter();
+  await screen.waitForFrame((frame) => frame.includes("Claim & start here"));
+  expect(started).toBe(false);
+  await screen.key("s");
+  initialLink.resolve(null);
+  await screen.renderer.idle();
+  expect(screen.captureCharFrame()).toContain("Linked: demo-1 · started");
+  expect(screen.captureCharFrame()).toContain("Nothing ready");
 });

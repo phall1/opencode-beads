@@ -34,7 +34,8 @@ panel behavior. All colors use the active OpenCode theme.
   action. Do not present stale results as current after a failed refresh.
 
 Listing and inspecting never initialize, claim, edit, close, or synchronize beads.
-No LLM call is needed to browse. No background polling when the workbench is shut.
+No LLM call is needed to browse. Browsing does not poll in the background;
+execution-bound claim leases renew independently of the workbench.
 
 ## Acceptance evidence
 
@@ -48,13 +49,45 @@ No LLM call is needed to browse. No background polling when the workbench is shu
 6. Exercise the adapter against an isolated real Beads workspace when the local
    installation supports it; record the exact tested versions and limitations.
 
+## Claim and start (second slice)
+
+From a bead's detail view inside a session, **s — Claim & start here** claims the
+bead for that OpenCode session and submits a focused work prompt. This explicit
+action changes Beads ownership/status and starts or queues agent work; ordinary
+browsing and **a — Add context** remain read-only.
+
+- Ownership is session-specific (`opencode:<sessionID>`), so two agents belonging
+  to the same human cannot silently share a claim.
+- A session has one linked bead. Repeating Start for that bead resumes an
+  incomplete handoff or reports that its prompt was already submitted. Starting
+  another bead in the same session reports the existing link instead of replacing it.
+- Persist the claimed bead and the exact prompt/message ID before submission.
+  Retrying an interrupted submission reuses that ID and body; it must not enqueue
+  duplicate work. Plugin reloads preserve the link.
+- Ownership conflicts and changed issue state do not overwrite another actor.
+  A claim is never rolled back implicitly after a prompt/storage failure.
+- Resolve the session's current location on the server before mutation and again
+  before prompt submission. An out-of-date panel cannot redirect work elsewhere.
+- The detail view shows linked/claimed/submitted status and an explicit retry
+  path when the claim succeeded but the handoff did not finish.
+- The agent-facing `beads_claim` tool uses the invoking session, not a caller-
+  supplied session ID. It links/claims and supplies context to the current agent
+  without submitting a second prompt to itself.
+
+Acceptance includes competing claims, retries after accepted-but-lost prompt
+responses, durable recovery after module recreation, location mismatches, and
+native terminal Start interaction. Real Beads fixture checks must exercise the
+actual atomic ownership operation, not a mock pretending to implement it.
+
 ## Highest-value next slices
 
 Ordered by usefulness in the daily **orient → choose → execute → finish** loop:
 
-1. **Claim and start** — atomic Beads claim, explicit session linkage, and a
-   focused work prompt. Show ownership conflicts immediately. This closes the
-   gap between seeing work and doing it.
+1. **Claim and start (implemented)** — atomic ownership, durable session linkage,
+   retry-safe prompt admission, and execution-based leases. Dependency readiness
+   is checked before claiming; the tested Beads cannot make that exact-ID check
+   atomic with the claim. Reload during long tool execution has the lease
+   recovery limitation documented in README.md.
 2. **Finish with evidence** — review the change, capture validation, close the
    bead, and show newly unblocked work. Make finishing as easy as starting.
 3. **Dependency explanation** — “why is this blocked?” with navigable blockers,

@@ -23,6 +23,7 @@ server.ts            local-directory loader compatibility entrypoint
 tui.tsx              V2 terminal registrations: panel, route, slash command
 rpc.ts               shared, validated wire contract; no server imports
 src/beads/           Beads process execution, decoding, normalized records
+src/work/            claim/start orchestration, host adapter, lease lifecycle
 src/workbench/       asynchronous view state and native terminal presentation
 test/               behavior, process, host-registration, and rendering tests
 scripts/            repeatable packaging and real-Beads smoke checks
@@ -83,10 +84,44 @@ the initial slice. Refreshes replace displayed data and show errors explicitly.
   migration and location fixes, the maximum remains 8. The server entrypoint's
   maximum decreased 3→1; the TUI entrypoint 5→3; the reader remains 5. These are
   ESLint cyclomatic measurements including callbacks, not line-count proxies.
+  Claim/start changes keep the overall maximum at 8 and touched nesting at ≤2:
+  process failure classification maximum 5→7, reader 5→5, server 1→1, TUI 3→3,
+  workbench view 8→8. New work service/lock/leases/host adapter/controls maxima
+  are 6/2/7/6/6 respectively (new functions have no prior baseline).
 - Bun lockfile, Linux/macOS CI, native rendering tests, and installed-tarball
   verification. Published compatibility claims follow observed evidence.
 
-Future writes should extend the same reader module into a work module only
-when claim/start is implemented. Add atomic claim semantics there, not in JSX.
-Session/bead associations will be durable plugin storage keyed by location and
-session. Event-driven refresh comes after a reliable initial read path.
+## Claim/start and leases
+
+`createWork` exposes `claim`, `start`, and `linked`. Its host interface hides V2
+storage/session details and enables deliberate failure injection. A per-session
+semaphore shared across plugin module generations serializes retained old tool
+executors with current RPC handlers in the same server process. The lock spans
+locations because plugin storage is shared across session moves. Beads performs
+the cross-process ownership CAS. Independent servers sharing the same OpenCode
+session/storage are not an orchestration topology supported by this slice.
+
+Persist `claim_pending` before mutation and verify ownership before promoting to
+`claimed`. Known refusals clear intent; ambiguous failures retain it for read-
+based reconciliation. A pre-mutation location failure clears the intent. Persist
+the exact prompt and message ID before admission; `started` means accepted,
+not successful execution. Retrying that ID uses OpenCode's inbox deduplication.
+Beads, plugin storage, and the inbox are separate transactions; there is no
+automatic ownership rollback. Public RPC links omit the private saved prompt.
+
+Links are stored by session and validated against directory/workspace identity
+on read. Moving a linked session cannot reinterpret its old bead ID in another
+database. This slice intentionally supports one linked bead per session.
+
+The tested Beads rejects Ready filtering by ID. The reader uses
+`ready --brief --limit 0 --max-rows 10000` under the usual process budget, then
+checks membership. Ownership/status is atomic; dependency readiness is a
+preceding snapshot. Claims use `update ID --claim --actor opencode:<sessionID>`
+with `--sandbox` to disable auto-push, never the reader's `--readonly` flag.
+
+Lease activity is ephemeral. Execution events, primary model requests, and an
+executing claim tool establish activity; persisted links do not. A scoped
+60-second loop verifies location and ownership before heartbeating. This SDK
+lacks `ctx.session.active()`, so reload during a long tool call cannot recover
+activity until the next primary model request. No private host imports or
+invented types bridge that gap.

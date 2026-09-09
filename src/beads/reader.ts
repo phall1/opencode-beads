@@ -13,6 +13,31 @@ const flags = ["--readonly", "--sandbox", "--json", "--no-color"];
 
 export function createReader(options: ProcessOptions) {
   return {
+    ready: (input: string) =>
+      Effect.tryPromise({
+        try: async (signal) => {
+          const id = IssueID.parse(input);
+          // This bd release explicitly rejects --ready with --id. Scan a bounded,
+          // complete Ready set; --max-rows fails rather than silently truncating it.
+          const result = decode(
+            await runBeads(
+              options,
+              [
+                ...flags,
+                "ready",
+                "--brief",
+                "--limit",
+                "0",
+                "--max-rows",
+                "10000",
+              ],
+              signal,
+            ),
+          );
+          return result.issues.some((issue) => issue.id === id);
+        },
+        catch: readerFailure,
+      }),
     list: (input: ListQuery) =>
       Effect.tryPromise({
         try: async (signal): Promise<ListResult> => {

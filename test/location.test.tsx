@@ -35,6 +35,7 @@ test("session cache miss never queries a fallback; moving the same session abort
     keymap: { layer: () => {} },
     client: {
       rpc: () => ({
+        linked: async () => null,
         list: (
           _query: unknown,
           options: { location: { directory: string }; signal: AbortSignal },

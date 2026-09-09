@@ -11,6 +11,12 @@ export type FailureCode =
   | "invalid_output"
   | "invalid_input"
   | "not_found"
+  | "ownership_conflict"
+  | "not_claimable"
+  | "outcome_unknown"
+  | "workspace_changed"
+  | "session_linked"
+  | "handoff_failed"
   | "command_failed";
 
 export class BeadsError extends Error {
@@ -104,6 +110,16 @@ function classifyFailure(
     return new BeadsError(
       "timeout",
       "Beads did not respond within the time limit. Check `bd doctor` in this workspace, then refresh.",
+    );
+  if (/issue already claimed/i.test(stderr))
+    return new BeadsError(
+      "ownership_conflict",
+      `Bead is owned by another actor. ${displayText(stderr).slice(0, 500)}`,
+    );
+  if (/issue not claimable|cannot claim.*template/i.test(stderr))
+    return new BeadsError(
+      "not_claimable",
+      `Bead cannot be claimed in its current state. ${displayText(stderr).slice(0, 500)}`,
     );
   if (
     /no beads database|not initialized|no \.beads|could not find.*beads/i.test(

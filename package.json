@@ -1,6 +1,10 @@
 {
   "name": "opencode-beads",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phall1/opencode-beads.git"
+  },
   "description": "A native Beads workbench for OpenCode V2",
   "type": "module",
   "license": "MIT",

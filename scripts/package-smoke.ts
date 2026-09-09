@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, rm } from "node:fs/promises";
+import { scratch } from "./temp";
 import { join, resolve } from "node:path";
 import { Host } from "@opencode/plugin/host";
 
-const parent =
-  process.platform === "darwin" ? "/private/tmp/opencode" : tmpdir();
-const directory = await mkdtemp(join(parent, "beads-package-"));
+const directory = await scratch("beads-package-");
 
 async function run(args: string[], cwd: string) {
   const child = Bun.spawn(args, { cwd, stdout: "pipe", stderr: "pipe" });
@@ -20,21 +18,20 @@ async function run(args: string[], cwd: string) {
 }
 
 try {
-  const output = await run(
+  await run(
     [process.execPath, "pm", "pack", "--destination", directory],
     resolve(import.meta.dir, ".."),
   );
-  const tarball = output
-    .trim()
-    .split("\n")
-    .findLast((line) => line.endsWith(".tgz"));
-  assert.ok(tarball, output);
+  const tarballs = (await readdir(directory)).filter((name) =>
+    name.endsWith(".tgz"),
+  );
+  assert.equal(tarballs.length, 1, "Expected one packed artifact");
   await Bun.write(
     join(directory, "package.json"),
     JSON.stringify({
       private: true,
       dependencies: {
-        "opencode-beads": join(directory, "opencode-beads-0.1.0.tgz"),
+        "opencode-beads": join(directory, tarballs[0]!),
         "solid-js": "1.9.12",
       },
     }),
@@ -56,7 +53,12 @@ try {
   assert.equal(tui.default.id, "beads.tui");
   assert.equal(typeof server.default.effect, "function");
   assert.equal(typeof tui.default.setup, "function");
-  assert.deepEqual(Object.keys(rpc.Beads.methods), ["list", "show"]);
+  assert.deepEqual(Object.keys(rpc.Beads.methods).sort(), [
+    "linked",
+    "list",
+    "show",
+    "start",
+  ]);
   console.log(
     await run(
       [

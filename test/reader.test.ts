@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, rm, writeFile } from "node:fs/promises";
+import { scratch } from "../scripts/temp";
 import { join } from "node:path";
 import { createReader } from "../src/beads/reader";
 import { runBeads } from "../src/beads/process";
@@ -10,9 +10,7 @@ import { Effect } from "effect";
 let directory: string;
 let executable: string;
 beforeAll(async () => {
-  const parent =
-    process.platform === "darwin" ? "/private/tmp/opencode" : tmpdir();
-  directory = await mkdtemp(join(parent, "beads-test-"));
+  directory = await scratch("beads-test-");
   executable = join(directory, "bd fixture");
   await writeFile(
     executable,
@@ -83,7 +81,9 @@ test("external wire variants work, while malformed responses are never an empty 
     await rm(response, { force: true });
   }
 });
-afterAll(() => rm(directory, { recursive: true, force: true }));
+afterAll(async () => {
+  if (directory) await rm(directory, { recursive: true, force: true });
+});
 
 test("reader uses a read-only argv contract for list and full lookup", async () => {
   const reader = createReader({ directory, executable });

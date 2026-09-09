@@ -10,6 +10,7 @@ import type { Context } from "@opencode/plugin/tui/context";
 import { createWorkbench, type Reader, type Workbench } from "./model";
 import { displayText, errorMessage, readableText } from "../text";
 import type { Issue } from "../beads/schema";
+import { WorkControls, type WorkActions } from "./work-actions";
 
 export interface WorkbenchProps {
   context: Context;
@@ -19,6 +20,7 @@ export interface WorkbenchProps {
   close(): void;
   fullscreen?: () => void;
   attach?: (issue: Issue) => Promise<void>;
+  work?: WorkActions;
 }
 
 export function WorkbenchView(props: WorkbenchProps) {
@@ -176,6 +178,17 @@ export function WorkbenchView(props: WorkbenchProps) {
           context={props.context}
           focused={props.focused && !searching()}
         />
+      </Show>
+      <Show when={props.work}>
+        {(work) => (
+          <WorkControls
+            context={props.context}
+            work={work()}
+            issue={model.state.detail}
+            focused={props.focused && !searching()}
+            refresh={() => model.refresh()}
+          />
+        )}
       </Show>
       <text fg={theme.text.subdued} marginTop={1} flexShrink={0}>
         {model.state.inspecting

@@ -69,6 +69,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
       {(_key) => {
         const connected = connection(context, location()!);
         const sessionID = props.panel.sessionID;
+        const rpc = context.client.rpc(Beads);
         return (
           <WorkbenchView
             context={context}
@@ -76,6 +77,18 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
             focused={props.panel.focused}
             close={props.panel.close}
             fullscreen={props.panel.toggleFullscreen}
+            work={{
+              linked: (signal) =>
+                rpc.linked(
+                  { sessionID },
+                  { location: connected.location, signal },
+                ),
+              start: (id, signal) =>
+                rpc.start(
+                  { id, sessionID },
+                  { location: connected.location, signal },
+                ),
+            }}
             attach={async (issue) => {
               const current = await context.client.session.get({ sessionID });
               if (

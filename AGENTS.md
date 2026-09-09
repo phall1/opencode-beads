@@ -19,3 +19,20 @@
 - Pin the beta OpenCode SDK and coordinate OpenTUI/Solid versions. Recheck the
   installed package and native rendering after host dependency upgrades.
 - Do not publish packages or create upstream PRs as part of routine development.
+
+## Dogfood the workflow
+
+- This repository uses Beads (prefix `ocb`) to track real work. Browse with the
+  plugin's `beads_list` / `beads_show` tools and claim the active bead with
+  `beads_claim`. Use explicit `bd` commands for creation/dependencies/completion
+  until those operations are implemented in the plugin; use `--sandbox` to keep
+  synchronization deliberate and the same `opencode:<sessionID>` actor for writes.
+- Keep discoveries and follow-up work in Beads; close completed work with concrete
+  verification evidence. Beads owns readiness, including dependency ordering.
+- `opencode.jsonc` loads this checkout (`./`) for live testing. Avoid loading a
+  second installed copy with the same plugin ID. The global dogfood installation
+  should point to this same checkout.
+- Beads' Dolt database and runtime files are local/ignored; tracked `.beads`
+  configuration does not contain issue data. A fresh clone needs an explicit
+  `bd init` or configured Dolt remote pull before browsing; never initialize it
+  as a side effect of the plugin.

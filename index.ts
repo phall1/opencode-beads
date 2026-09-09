@@ -5,14 +5,38 @@ import { Beads } from "./rpc";
 import { createReader } from "./src/beads/reader";
 import { ListQuery, ShowQuery } from "./src/beads/schema";
 import { errorMessage } from "./src/text";
+import { createClaims } from "./src/beads/claims";
+import { createWork } from "./src/work/service";
+import { workHost } from "./src/work/opencode";
+import { watchLeases } from "./src/work/leases";
 
 export default Plugin.define({
   id: "beads.server",
   effect: (ctx) =>
     Effect.gen(function* () {
       const reader = createReader({ directory: ctx.location.directory });
+      const claims = createClaims({ directory: ctx.location.directory });
+      const host = workHost(ctx);
+      const work = createWork(ctx.location, host, reader, claims);
+      const leases = yield* watchLeases(ctx, host, reader, claims);
       yield* ctx.rpc
         .register(Beads, {
+          linked: (input, call) =>
+            work.linked(input.sessionID).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
+          start: (input, call) =>
+            work.start(input).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
           list: (input, call) =>
             reader.list(input).pipe(
               Effect.mapError((error) =>
@@ -35,7 +59,28 @@ export default Plugin.define({
         editor.namespace({
           name: "beads",
           description:
-            "Read Beads work in this session's workspace. Browsing does not claim or change issues.",
+            "Browse Beads work and explicitly claim a bead for this session. Reads never claim or change issues.",
+        });
+        editor.add({
+          name: "claim",
+          description:
+            "Atomically claim a Ready bead for this session and durably link it. Mutates assignee/status. Returns the full issue for work in the current agent turn; does not submit another prompt. Never steals another session's claim.",
+          input: ShowQuery,
+          options: {
+            namespace: "beads",
+            codemode: true,
+            permission: "beads.write",
+          },
+          execute: (input, tool) =>
+            work.claim({ id: input.id, sessionID: tool.sessionID }).pipe(
+              Effect.tap(() =>
+                Effect.sync(() => leases.activate(tool.sessionID)),
+              ),
+              Effect.map((result) => ({ content: JSON.stringify(result) })),
+              Effect.mapError(
+                (error) => new Tool.Error({ message: errorMessage(error) }),
+              ),
+            ),
         });
         editor.add({
           name: "list",

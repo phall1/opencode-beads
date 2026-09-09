@@ -7,7 +7,7 @@ A native [OpenCode V2](https://opencode.ai/v2/docs/build/plugins/cli) workbench 
 inspect the details, and bring a bead into the conversation without leaving your
 terminal. The server plugin uses **OpenCode's Effect API**.
 
-## The first slice
+## The workbench
 
 - `/beads` opens a session panel; from home it opens a full-page workbench.
 - **Ready / In progress / Open** views, with priority, ID, status, owner, and labels.
@@ -16,10 +16,14 @@ terminal. The server plugin uses **OpenCode's Effect API**.
 - Explicitly add a bead to the current conversation as reference context. The
   action does not resume an idle agent or claim the bead.
 - `beads_list` and `beads_show` give agents the same server-side read path.
+- **s — Claim & start here** claims a Ready bead for this session, saves a durable
+  link, and submits a focused work prompt. `beads_claim` lets an agent claim/link
+  work without enqueueing a second prompt to itself.
 - Uses the active theme and the host's panel focus/fullscreen behavior.
 
-This is a working **0.1 foundation**, not a published npm release. Claim/start,
-issue editing, close-with-evidence, comments, and dependency navigation are the
+This is a working **0.2 development version**, available on
+[GitHub](https://github.com/phall1/opencode-beads), not a published npm release.
+Issue editing, close-with-evidence, comments, and dependency navigation are the
 next product slices; see [PRODUCT.md](PRODUCT.md).
 
 ## Try it locally
@@ -56,11 +60,43 @@ to the server machine. See the [V2 loading guide](https://opencode.ai/v2/docs/cl
 | `Enter`              | Inspect selection; finish editing the search field               |
 | `/`                  | Search loaded results; clear the field to remove the filter      |
 | `r`                  | Refresh                                                          |
+| `s`                  | Claim inspected bead and start work here (session panel only)    |
 | `a`                  | Add inspected bead to this conversation (session panel only)     |
 | `f`                  | Toggle panel fullscreen (host keeps narrow terminals fullscreen) |
 | `Esc`                | Leave search, return to list, or close                           |
 
 View tabs also respond to clicks. Shortcuts are scoped to the focused workbench.
+
+### Claim/start behavior
+
+Claims belong to `opencode:<sessionID>`: two sessions for the same human compete
+as distinct actors. Beads performs the atomic ownership operation and refuses
+foreign claims or unclaimable statuses. The plugin checks Ready before claiming;
+Beads has no atomic exact-ID dependency-ready claim, so concurrent dependency
+changes remain possible. The readiness check scans at most 10,000 records and
+fails visibly if that or the output budget is exceeded.
+
+One bead is linked per session. The link and exact prompt/message ID survive
+panel closure and plugin reload. If prompt submission fails, **s** retries that
+same prompt. An uncertain claim is reconciled against current ownership before
+proceeding; ownership is never rolled back to undo a failed handoff. If ownership
+remains unconfirmed, inspect it with `bd` and use another session rather than
+blindly replaying the write. Link retirement is part of the next completion slice.
+
+Lease heartbeats run every 60 seconds while the server observes execution,
+independently of panel visibility. They stop on completion, interruption,
+workspace change, or ownership loss. The pinned V2 plugin API lacks an active-
+session snapshot: after reload, renewal resumes on fresh execution or primary-
+model activity. A long tool call spanning a reload can temporarily lose renewal.
+
+### Dogfooding this repository
+
+`opencode.jsonc` loads `./`; this repository tracks real work with Beads prefix
+`ocb`. Use `/beads` here to inspect the live backlog. A global installation must
+point to the same checkout rather than also loading a Git-installed copy with
+the same plugin ID. Beads configuration is tracked; the local Dolt database and
+runtime files are ignored. Fresh clones require explicit Beads initialization
+or Dolt remote setup. The plugin never initializes a database for you.
 
 ## Honest data, bounded work
 
@@ -76,7 +112,8 @@ connection settings remain available to Beads. The header names the requested
 workspace; Beads may resolve a shared database through its configured redirects.
 
 Reads use `--readonly --sandbox`, a 10-second timeout, and a 4 MiB stream-buffer
-limit. The plugin does not initialize a database or run sync/claim/edit commands.
+limit. Browsing never initializes, synchronizes, or mutates issues. Only explicit
+claim/start actions and their execution-bound lease heartbeats write to Beads.
 Missing tooling, missing directories, backend failures, and empty results have
 distinct states. Superseded requests are aborted; stale data cannot overwrite a
 new view or a moved session.
@@ -102,7 +139,7 @@ Beads versions/backends are not yet verified. V1 is not a supported target.
 
 ## Architecture and development
 
-One package, a small public surface, and two meaningful internal modules:
+One package with a small public surface and focused internal modules:
 
 ```text
 index.ts             Effect-native V2 server plugin: RPC + agent tools
@@ -110,6 +147,7 @@ server.ts            local-directory loader compatibility entrypoint
 tui.tsx              V2 panel, route, slash command, session location lifecycle
 rpc.ts               shared validated RPC contract
 src/beads/           lazy, interruptible reads; argv, limits, decoding, failures
+src/work/            recoverable claim/start, durable links, execution leases
 src/workbench/       view state and native Solid/OpenTUI presentation
 test/                process, race, location, and native-input regressions
 scripts/             installed-package, Effect SDK host, and real-Beads checks
