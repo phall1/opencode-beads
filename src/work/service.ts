@@ -19,6 +19,14 @@ export interface WorkHost {
   prompt(link: WorkLink): Effect.Effect<void, BeadsError>;
 }
 
+export interface RetirableWorkHost extends WorkHost {
+  retire(
+    sessionID: string,
+    id: string,
+    promptID: string,
+  ): Effect.Effect<void, BeadsError>;
+}
+
 export function createWork(
   location: { directory: string; workspaceID?: string },
   host: WorkHost,

@@ -68,8 +68,38 @@ Same-session mutations are serialized, including across moves and plugin reloads
 The UI uses a links collection; the existing single-link RPC stays compatible.
 Legacy one-link records remain readable without losing retry state.
 
-## Next
+## Session work intelligence
 
-Close work with validation evidence; explain blockers and dependents; capture
-follow-up beads from the conversation. Acceptance commands and compatibility
-limits are in [TESTING.md](TESTING.md).
+Approved milestone: `ocb-ycs`, `ocb-4x8`, `ocb-29i`. Extend the existing terminal
+design; no separate visual mock was supplied.
+
+1. Claimed work automatically supplies a bounded work brief to subsequent model
+   calls, including after compaction and plugin reload. It contains current owned
+   work, acceptance criteria, notes and dependency references. Merely browsing or
+   attaching a reference never makes it active work or starts an agent turn.
+2. The brief supports multiple beads, emphasizes the most recently claimed work,
+   and identifies omitted fields/beads and unavailable reads. Humans and agents can
+   inspect and explicitly refresh it. Closed or reassigned beads cease to be active
+   context; moving the session never resolves earlier IDs in its new database.
+3. Finish is an explicit action on linked, owned work. Require a nonempty summary
+   and validation evidence; optional artifact/commit references are retained with
+   them. Completion evidence is supplied by the caller, not inferred from an idle
+   session or a successful model/tool turn.
+4. Finishing checks current location and ownership, records evidence, closes via
+   Beads, then retires the active link. Failed or interrupted completion is
+   recoverable without silently changing the submitted evidence. A repeat finish
+   reconciles its previous result rather than closing a different work generation.
+5. Finish returns work observed newly Ready since its saved before-snapshot, along
+   with any refresh failure. Concurrent changes may contribute to this set: it is
+   not a claim that closing this bead alone caused every newly Ready result.
+6. Inspecting a bead reveals its immediate dependencies and dependents with titles,
+   states and recorded relationship types. Navigate directly to a related bead;
+   preserve ordinary Back, search, keyboard and mouse focus behavior. Missing or
+   external references and result caps remain visible.
+7. Suggested-next work uses current Beads Ready membership, priority and explained
+   relationship counts. It never automatically claims, rewrites priorities, or
+   treats graph connectivity as readiness or proof of safe parallel file edits.
+8. All graph/context browsing remains read-only and bounded. The core milestone
+   requires only `bd`; optional `bv` advanced analytics and broader project-memory
+   injection are follow-ups. Acceptance commands and compatibility limits are in
+   [TESTING.md](TESTING.md).

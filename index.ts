@@ -9,6 +9,8 @@ import { createClaims } from "./src/beads/claims";
 import { createWork } from "./src/work/service";
 import { workHost } from "./src/work/opencode";
 import { watchLeases } from "./src/work/leases";
+import { intelligence } from "./src/work/intelligence";
+import { addIntelligenceTools } from "./src/intelligence-tools";
 
 export default Plugin.define({
   id: "beads.server",
@@ -18,9 +20,42 @@ export default Plugin.define({
       const claims = createClaims({ directory: ctx.location.directory });
       const host = workHost(ctx);
       const work = createWork(ctx.location, host, reader, claims);
+      const insights = yield* intelligence(ctx, host, reader, claims);
       const leases = yield* watchLeases(ctx, host, reader, claims);
       yield* ctx.rpc
         .register(Beads, {
+          context: (input, call) =>
+            insights.brief(input.sessionID).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", errorMessage(error), {
+                  code: "command_failed",
+                }),
+              ),
+            ),
+          graph: (input, call) =>
+            insights.graph(input).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
+          next: (input, call) =>
+            insights.next(input).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
+          finish: (input, call) =>
+            insights.finish(input).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
           links: (input, call) =>
             work.links(input.sessionID).pipe(
               Effect.mapError((error) =>
@@ -38,7 +73,7 @@ export default Plugin.define({
               ),
             ),
           start: (input, call) =>
-            work.start(input).pipe(
+            insights.change(input.sessionID, work.start(input)).pipe(
               Effect.mapError((error) =>
                 call.error("unavailable", error.message, {
                   code: error.code,
@@ -67,7 +102,7 @@ export default Plugin.define({
         editor.namespace({
           name: "beads",
           description:
-            "Browse Beads work and explicitly claim a bead for this session. Reads never claim or change issues.",
+            "Browse work, inspect automatic context and relationships, choose Ready work, and explicitly claim or finish with evidence. Reads never claim or change issues.",
         });
         editor.add({
           name: "claim",
@@ -80,15 +115,20 @@ export default Plugin.define({
             permission: "beads.write",
           },
           execute: (input, tool) =>
-            work.claim({ id: input.id, sessionID: tool.sessionID }).pipe(
-              Effect.tap(() =>
-                Effect.sync(() => leases.activate(tool.sessionID)),
+            insights
+              .change(
+                tool.sessionID,
+                work.claim({ id: input.id, sessionID: tool.sessionID }),
+              )
+              .pipe(
+                Effect.tap(() =>
+                  Effect.sync(() => leases.activate(tool.sessionID)),
+                ),
+                Effect.map((result) => ({ content: JSON.stringify(result) })),
+                Effect.mapError(
+                  (error) => new Tool.Error({ message: errorMessage(error) }),
+                ),
               ),
-              Effect.map((result) => ({ content: JSON.stringify(result) })),
-              Effect.mapError(
-                (error) => new Tool.Error({ message: errorMessage(error) }),
-              ),
-            ),
         });
         editor.add({
           name: "list",
@@ -133,5 +173,6 @@ export default Plugin.define({
             ),
         });
       });
+      yield* addIntelligenceTools(ctx, insights);
     }),
 });

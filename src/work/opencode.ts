@@ -5,9 +5,9 @@ import { Effect } from "effect";
 import { BeadsError } from "../beads/process";
 import { errorMessage } from "../text";
 import { linkStore } from "./storage";
-import type { WorkHost } from "./service";
+import type { RetirableWorkHost } from "./service";
 
-export function workHost(ctx: Plugin.Context): WorkHost {
+export function workHost(ctx: Plugin.Context): RetirableWorkHost {
   return {
     ...linkStore(ctx.storage, ctx.location),
     validate: (sessionID) =>

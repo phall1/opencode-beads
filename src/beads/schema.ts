@@ -31,11 +31,20 @@ export const Issue = z.object({
   design: z.string().default(""),
   acceptance_criteria: z.string().default(""),
   notes: z.string().default(""),
+  close_reason: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
+  closed_by_session: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
   dependencies: z
     .array(
       z.object({
         depends_on_id: z.string(),
         type: z.string(),
+        metadata: z.string().default(""),
       }),
     )
     .nullish()

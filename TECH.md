@@ -95,6 +95,48 @@ Event consumption and renewal run together. Subscription failure cancels pending
 renewals, clears activity, and retries after five seconds. Reconnection requires
 fresh activity evidence. Scope closure stops both operations and retries.
 
+## Session work intelligence
+
+Baseline [2fd6a6a](https://github.com/phall1/opencode-beads/tree/2fd6a6a):
+`src/work/service.ts` owns durable claim/start; `src/work/storage.ts` owns per-bead
+links; `src/workbench/context.ts` handles explicit passive references. Extend those
+seams with Effect services for completion, read-only relationships, and automatic
+briefs. Keep the existing claim/start storage schema and legacy RPCs compatible.
+
+- Register the installed SDK's `session.hook("context")`; append bounded task data
+  to each outgoing context without changing persisted user input or queuing work.
+  This hook also runs during compaction. Read durable links after reload, validate
+  session location before/after reads, and check live issue ownership/status.
+- Cache briefs briefly by session inside the location-scoped plugin. Invalidate on
+  plugin claim/start/finish, reject late cache writes, bound cache size/read fanout,
+  and offer explicit fresh reads. Failures produce concise unavailable context
+  rather than preventing unrelated model execution. Never spawn a model to build
+  a brief; keep issue data subordinate to user/repository instructions.
+- Use a separate durable finish receipt containing the claim generation, immutable
+  evidence, pre-close Ready IDs and observed close state. Serialize with the same
+  session lock as claim/start. Save before mutation, reconcile current Beads state
+  on retry, then retire matching v2 and legacy links without resurrecting legacy
+  work. Preserve receipts if cleanup/Ready refresh fails.
+- Store human-readable evidence in the native close reason; verify the live result.
+  Native command ownership/race limits must be documented from fixture evidence.
+  Ready snapshots use `bd`'s complete bounded query, not a locally reconstructed
+  scheduler. Return observed newly Ready work separately from closure success.
+- Relationship reads use native read-only dependency queries with validated output,
+  explicit bounds and recorded edge types. Immediate neighborhood metadata is
+  advisory; only native Ready membership authorizes recommendations/claim attempts.
+  The current 100-row UI page is never used as a complete project graph.
+- Add shared RPC and agent surfaces for brief, graph, next and finish. The terminal
+  shows relationships in scrollable detail, an inspectable work brief, and an
+  evidence-entry flow using native host dialogs. Keep 24/40-column controls usable.
+
+Validation maps PRODUCT invariants 1–2 to context cache/location/compaction tests;
+3–5 to interrupted writes, immutable retry evidence, foreign ownership, legacy
+retirement and real-Beads close/Ready checks; 6–8 to native graph decoding and TUI
+keyboard/mouse tests. Run installed-package SDK-host smoke and compiled Drive with
+isolated Beads fixtures, inspect screenshots, and independently review the final
+diff. One writer owns integration; parallel read-only research/review covers
+native CLI semantics and correctness.
+
 ## Beads and lease limits
 
 The tested Beads rejects Ready filtering by ID. Claims check membership in

@@ -14,3 +14,22 @@ export function errorMessage(error: unknown): string {
     return displayText(String(error.message));
   return "Unable to reach the Beads plugin. Check the server plugin installation, then refresh.";
 }
+
+export function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/** Explicit UTF-8 truncation without splitting a Unicode code point. */
+export function boundedText(value: string, budget: number): string {
+  const text = readableText(value);
+  if (utf8Bytes(text) <= budget) return text;
+  const suffix = "… [truncated; inspect full bead]";
+  let result = "";
+  let bytes = utf8Bytes(suffix);
+  for (const char of text) {
+    bytes += utf8Bytes(char);
+    if (bytes > budget) break;
+    result += char;
+  }
+  return result + suffix;
+}

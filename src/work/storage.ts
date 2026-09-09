@@ -5,7 +5,7 @@ import { StoredWorkLink as WorkLink } from "./schema";
 
 type Location = { directory: string; workspaceID?: string };
 
-function storageCall<A>(operation: string, effect: Effect.Effect<A>) {
+export function storageCall<A>(operation: string, effect: Effect.Effect<A>) {
   return effect.pipe(
     Effect.catchDefect((cause) =>
       Effect.logError("Beads link storage failed", { operation, cause }).pipe(
@@ -105,5 +105,27 @@ export function linkStore(
       storageCall("save", storage.set(key(link.sessionID, link.id), link)),
     remove: (sessionID: string, id: string) =>
       storageCall("remove", storage.remove(key(sessionID, id))),
+    retire: Effect.fn("LinkStore.retire")(function* (
+      sessionID: string,
+      id: string,
+      promptID: string,
+    ) {
+      const current = yield* load(sessionID, id);
+      if (current && current.promptID !== promptID)
+        return yield* Effect.fail(
+          new BeadsError(
+            "ownership_conflict",
+            "A newer claim replaced this link. Its state was preserved.",
+          ),
+        );
+      const old = yield* legacy(sessionID);
+      // Remove the fallback first so interruption cannot resurrect a legacy link.
+      if (old?.id === id)
+        yield* storageCall(
+          "retire legacy link",
+          storage.remove(`work/${sessionID}`),
+        );
+      yield* storageCall("retire link", storage.remove(key(sessionID, id)));
+    }),
   };
 }

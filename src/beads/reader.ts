@@ -12,7 +12,35 @@ const Envelope = z.object({
 const flags = ["--readonly", "--sandbox", "--json", "--no-color"];
 
 export function createReader(options: ProcessOptions) {
+  const readyWork = () =>
+    Effect.tryPromise({
+      try: async (signal) => {
+        const result = decode(
+          await runBeads(
+            options,
+            [
+              ...flags,
+              "ready",
+              "--brief",
+              "--limit",
+              "0",
+              "--max-rows",
+              "10000",
+            ],
+            signal,
+          ),
+        );
+        if (result.truncated)
+          throw new BeadsError(
+            "output_limit",
+            "Beads returned an incomplete Ready snapshot. No complete-work comparison is available.",
+          );
+        return result.issues;
+      },
+      catch: readerFailure,
+    });
   return {
+    readyWork,
     ready: (input: string) =>
       Effect.tryPromise({
         try: async (signal) => {

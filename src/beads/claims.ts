@@ -40,5 +40,36 @@ export function createClaims(options: ProcessOptions) {
   return {
     claim: (id: string, actor: string) => execute("update", id, actor),
     heartbeat: (id: string, actor: string) => execute("heartbeat", id, actor),
+    close: (id: string, actor: string, reason: string) =>
+      Effect.tryPromise({
+        try: async (signal) => {
+          const validID = IssueID.parse(id);
+          const validActor = Actor.parse(actor);
+          await runBeads(
+            options,
+            [
+              "close",
+              validID,
+              "--actor",
+              validActor,
+              "--session",
+              validActor.replace(/^opencode:/, ""),
+              "--reason",
+              reason,
+              "--json",
+              "--sandbox",
+              "--no-color",
+            ],
+            signal,
+          );
+        },
+        catch: (error) =>
+          error instanceof BeadsError
+            ? error
+            : new BeadsError(
+                "invalid_input",
+                "Invalid completion ID or actor.",
+              ),
+      }),
   };
 }
