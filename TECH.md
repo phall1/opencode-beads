@@ -31,6 +31,15 @@ A move remounts the view and aborts old requests. Per-view state rejects late
 responses and preserves selection by ID. Solid/Promise views and keymaps dispose
 with their mount; server registrations and background fibers dispose with Scope.
 
+Panel ownership and native widget focus are separate. List navigation uses the
+panel-scoped keymap; ancestor focus restores the active widget through public
+renderer events, without intercepting dialog or composer focus. Clickable rows
+use a scrollbox: the pinned OpenTUI select has no row-click or wheel behavior.
+Add context uses the public session instruction-entry API. Synthetic messages,
+even with `resume: false`, enter the inbox and can consume a separate model turn
+before a queued Start. Context keys hash location and case-sensitive issue ID;
+oversized values become explicit lookup references within the 8 KiB host limit.
+
 Keep reactive UI modules in `.tsx`, even without JSX: the tested compiled CLI
 bypasses the required runtime transform for `.ts` store imports. Source-render
 tests do not detect this failure. `model.ts` forwards to `model.tsx` to preserve

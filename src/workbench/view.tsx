@@ -1,16 +1,14 @@
-import {
-  For,
-  Show,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onMount,
-} from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import type { Context } from "@opencode/plugin/tui/context";
+import type { BoxRenderable } from "@opentui/core";
 import { createWorkbench, type Reader, type Workbench } from "./model";
 import { displayText, errorMessage, readableText } from "../text";
 import type { Issue } from "../beads/schema";
 import { WorkControls, type WorkActions } from "./work-actions";
+import { IssueList } from "./list";
+import { Action } from "./action";
+import { WorkbenchHeader, WorkbenchFooter } from "./chrome";
+import { restoreWidgetFocus } from "./focus";
 
 export interface WorkbenchProps {
   context: Context;
@@ -28,8 +26,34 @@ export function WorkbenchView(props: WorkbenchProps) {
   const [searching, setSearching] = createSignal(false);
   const [attaching, setAttaching] = createSignal(false);
   const theme = props.context.theme;
+  let root: BoxRenderable | undefined;
+  const widgetID = () => {
+    if (searching()) return "beads-search-input";
+    if (model.state.inspecting) return "beads-detail";
+    return "beads-list";
+  };
+  restoreWidgetFocus(
+    () => root,
+    widgetID,
+    () => props.focused,
+  );
   onMount(() => void model.refresh());
   onCleanup(model.dispose);
+
+  function search() {
+    model.back();
+    setSearching(true);
+  }
+
+  function refresh(view = model.state.view) {
+    setSearching(false);
+    return model.refresh(view);
+  }
+
+  function inspect(id?: string) {
+    setSearching(false);
+    return model.inspect(id);
+  }
 
   async function attach() {
     const issue = model.state.detail;
@@ -56,21 +80,18 @@ export function WorkbenchView(props: WorkbenchProps) {
   props.context.keymap.layer(() => ({
     enabled: () => props.focused && !searching(),
     commands: [
-      { id: "beads.ready", bind: "1", run: () => model.refresh("ready") },
+      { id: "beads.ready", bind: "1", run: () => refresh("ready") },
       {
         id: "beads.progress",
         bind: "2",
-        run: () => model.refresh("in_progress"),
+        run: () => refresh("in_progress"),
       },
-      { id: "beads.open", bind: "3", run: () => model.refresh("open") },
-      { id: "beads.refresh", bind: "r", run: () => model.refresh() },
+      { id: "beads.open", bind: "3", run: () => refresh("open") },
+      { id: "beads.refresh", bind: "r", run: () => refresh() },
       {
         id: "beads.search",
         bind: "/",
-        run: () => {
-          model.back();
-          setSearching(true);
-        },
+        run: search,
       },
       {
         id: "beads.back",
@@ -102,19 +123,24 @@ export function WorkbenchView(props: WorkbenchProps) {
 
   return (
     <box
+      id="beads-workbench"
+      ref={root}
       flexDirection="column"
       flexGrow={1}
       minHeight={0}
       paddingX={1}
+      border
+      borderColor={theme.border.default}
       backgroundColor={theme.background.default}
     >
-      <text fg={theme.text.default} height={1} flexShrink={0}>
-        <b>BEADS</b> Your next useful move
-      </text>
-      <text fg={theme.text.subdued} wrapMode="none" height={1} flexShrink={0}>
-        {displayText(props.context.ui.format.path(props.directory))}
-      </text>
-      <box flexDirection="row" gap={2} marginTop={1} flexShrink={0} height={1}>
+      <WorkbenchHeader
+        context={props.context}
+        directory={props.directory}
+        focused={props.focused}
+        close={props.close}
+        fullscreen={props.fullscreen}
+      />
+      <box flexDirection="row" gap={1} flexShrink={0} height={1}>
         <For
           each={[
             { key: "1", view: "ready" as const, title: "Ready" },
@@ -123,46 +149,55 @@ export function WorkbenchView(props: WorkbenchProps) {
           ]}
         >
           {(tab) => (
-            <text
-              fg={
-                model.state.view === tab.view
-                  ? theme.text.default
-                  : theme.text.subdued
-              }
-              onMouseDown={() => void model.refresh(tab.view)}
-            >
-              {model.state.view === tab.view ? "▸ " : ""}
-              {tab.key} {tab.title}
-            </text>
+            <Action
+              context={props.context}
+              id={`beads-tab-${tab.view}`}
+              label={`${tab.key} ${tab.title}`}
+              primary={model.state.view === tab.view}
+              run={() => refresh(tab.view)}
+            />
           )}
         </For>
       </box>
-      <Show
-        when={searching()}
-        fallback={
-          <text
-            fg={theme.text.subdued}
-            height={1}
-            flexShrink={0}
-            wrapMode="none"
-          >
-            {model.state.search
-              ? `Filter: ${displayText(model.state.search)}`
-              : "/ Search loaded results"}
-          </text>
-        }
-      >
-        <input
-          placeholder="Search ID, title, owner, label…"
-          value={model.state.search}
-          focused={props.focused}
-          flexShrink={0}
-          onInput={model.search}
-          onSubmit={() => setSearching(false)}
-          textColor={theme.text.default}
-          backgroundColor={theme.background.surface.offset}
-        />
-      </Show>
+      <box flexDirection="row" height={1} flexShrink={0}>
+        <Show
+          when={searching()}
+          fallback={
+            <text
+              fg={theme.text.subdued}
+              height={1}
+              flexGrow={1}
+              wrapMode="none"
+              onMouseDown={search}
+              id="beads-search"
+            >
+              {model.state.search
+                ? `Filter: ${displayText(model.state.search)}`
+                : "/ Search loaded results"}
+            </text>
+          }
+        >
+          <input
+            placeholder="Search ID, title, owner, label…"
+            id="beads-search-input"
+            value={model.state.search}
+            focused={props.focused}
+            flexGrow={1}
+            onInput={model.search}
+            onSubmit={() => setSearching(false)}
+            textColor={theme.text.default}
+            backgroundColor={theme.background.surface.offset}
+          />
+        </Show>
+        <Show when={model.state.search}>
+          <Action
+            context={props.context}
+            id="beads-clear-search"
+            label="× Clear"
+            run={() => model.search("")}
+          />
+        </Show>
+      </box>
       <Show
         when={model.state.inspecting}
         fallback={
@@ -170,6 +205,7 @@ export function WorkbenchView(props: WorkbenchProps) {
             model={model}
             context={props.context}
             focused={props.focused && !searching()}
+            inspect={inspect}
           />
         }
       >
@@ -190,100 +226,17 @@ export function WorkbenchView(props: WorkbenchProps) {
           />
         )}
       </Show>
-      <text fg={theme.text.subdued} marginTop={1} flexShrink={0}>
-        {model.state.inspecting
-          ? `Esc back · r refresh${props.attach ? " · a add context" : ""}${attaching() ? " (adding…)" : ""}`
-          : "↑↓ / j k move · Enter inspect · r refresh"}
-      </text>
-      <text fg={theme.text.subdued} flexShrink={0}>
-        {props.fullscreen ? "f fullscreen · " : ""}Esc close · / search · 1/2/3
-        views
-      </text>
+      <WorkbenchFooter
+        context={props.context}
+        inspecting={model.state.inspecting}
+        searching={searching()}
+        back={model.back}
+        refresh={() => refresh()}
+        attach={props.attach ? attach : undefined}
+        attaching={attaching()}
+      />
     </box>
   );
-}
-
-function IssueList(props: {
-  model: Workbench;
-  context: Context;
-  focused: boolean;
-}) {
-  const model = props.model;
-  const theme = props.context.theme;
-  const options = createMemo(() =>
-    model.visible().map((issue) => ({
-      name: displayText(`P${issue.priority}  ${issue.id}  ${issue.title}`),
-      description: displayText(
-        `${issue.status} · ${issue.issue_type} · ${issue.assignee || "unassigned"} ${issue.labels.join(" · ")}`,
-      ),
-      value: issue.id,
-    })),
-  );
-  const index = () =>
-    Math.max(
-      0,
-      model.visible().findIndex((issue) => issue.id === model.state.selectedID),
-    );
-  return (
-    <box flexGrow={1} flexDirection="column" minHeight={0}>
-      <Show when={model.state.phase === "loading"}>
-        <text fg={theme.text.subdued}>Loading beads…</text>
-      </Show>
-      <Show when={model.state.error}>
-        <text fg={theme.text.feedback.error.default}>{model.state.error}</text>
-      </Show>
-      <Show when={model.state.phase === "ready"}>
-        <text fg={theme.text.subdued} flexShrink={0}>
-          {model.visible().length} shown · {model.state.result?.issues.length}{" "}
-          loaded
-          {model.state.result?.mayHaveMore
-            ? " · cap reached (100); more may exist"
-            : ""}
-        </text>
-        <Show
-          when={options().length > 0}
-          fallback={
-            <text fg={theme.text.subdued} marginTop={1}>
-              {emptyMessage(model)}
-            </text>
-          }
-        >
-          <select
-            options={options()}
-            selectedIndex={index()}
-            flexGrow={1}
-            minHeight={0}
-            focused={props.focused}
-            wrapSelection={false}
-            showScrollIndicator
-            textColor={theme.text.default}
-            descriptionColor={theme.text.subdued}
-            backgroundColor={theme.background.default}
-            focusedBackgroundColor={theme.background.default}
-            selectedBackgroundColor={theme.background.surface.offset}
-            selectedTextColor={theme.text.default}
-            selectedDescriptionColor={theme.text.subdued}
-            keyBindings={[
-              { name: "j", action: "move-down" },
-              { name: "k", action: "move-up" },
-            ]}
-            onChange={(_index, option) => {
-              if (option) model.select(String(option.value));
-            }}
-            onSelect={() => void model.inspect()}
-          />
-        </Show>
-      </Show>
-    </box>
-  );
-}
-
-function emptyMessage(model: Workbench): string {
-  if (model.state.search)
-    return "No matches in loaded results. Press / to change or clear the filter.";
-  if (model.state.view === "ready")
-    return "Nothing ready right now. Try 2 for work in progress or 3 for open work.";
-  return "No beads in this view. Switch views with 1/2/3 or refresh with r.";
 }
 
 function IssueDetail(props: {
@@ -293,7 +246,13 @@ function IssueDetail(props: {
 }) {
   const theme = props.context.theme;
   return (
-    <scrollbox flexGrow={1} minHeight={0} focused={props.focused}>
+    <scrollbox
+      id="beads-detail"
+      flexGrow={1}
+      minHeight={0}
+      focused={props.focused}
+      scrollX={false}
+    >
       <Show when={props.model.state.detailError}>
         <text fg={theme.text.feedback.error.default}>
           {props.model.state.detailError}

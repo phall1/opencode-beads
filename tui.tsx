@@ -3,8 +3,9 @@ import type { Context, PanelInput } from "@opencode/plugin/tui/context";
 import { Show, createMemo, createResource } from "solid-js";
 import { Beads } from "./rpc";
 import { WorkbenchView } from "./src/workbench/view";
-import { beadContext } from "./src/workbench/context";
+import { beadEntry } from "./src/workbench/context";
 import { errorMessage } from "./src/text";
+import { toggleWorkbench } from "./src/workbench/navigation";
 
 function connection(
   context: Context,
@@ -76,7 +77,12 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
             {...connected}
             focused={props.panel.focused}
             close={props.panel.close}
-            fullscreen={props.panel.toggleFullscreen}
+            fullscreen={
+              props.panel.presentation === "fullscreen" &&
+              props.panel.width <= 80
+                ? undefined
+                : props.panel.toggleFullscreen
+            }
             work={{
               links: (signal) =>
                 rpc.links(
@@ -90,6 +96,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
                 ),
             }}
             attach={async (issue) => {
+              const entry = await beadEntry(issue, connected.location);
               const current = await context.client.session.get({ sessionID });
               if (
                 current.location.directory !== connected.directory ||
@@ -98,11 +105,9 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
                 throw new Error(
                   "Session workspace changed. Reopen Beads before adding context.",
                 );
-              await context.client.session.synthetic({
+              await context.client.session.instructions.entry.put({
                 sessionID,
-                text: beadContext(issue, connected.directory),
-                description: `Bead ${issue.id}`,
-                resume: false,
+                ...entry,
               });
             }}
           />
@@ -142,18 +147,12 @@ export default Plugin.define({
           commands: [
             {
               id: "beads.workbench",
-              title: "Open Beads workbench",
+              title: "Toggle Beads workbench",
               group: "Beads",
               palette: true,
               slash: { name: "beads" },
               suggested: true,
-              run: () => {
-                if (!context.ui.panel.open("beads.workbench"))
-                  context.ui.router.navigate({
-                    type: "plugin",
-                    name: "beads.workbench",
-                  });
-              },
+              run: () => toggleWorkbench(context),
             },
           ],
         }));

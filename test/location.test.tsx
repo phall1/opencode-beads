@@ -32,7 +32,7 @@ test("session cache miss never queries a fallback; moving the same session abort
     theme: resolveThemeDocument(DEFAULT_THEME),
     location: { directory: "/wrong-default" },
     data: { session: { get: session, sync: async () => {} } },
-    keymap: { layer: () => {} },
+    keymap: { layer: () => {}, shortcuts: () => [] },
     client: {
       rpc: () => ({
         linked: async () => null,

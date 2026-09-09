@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import { Effect } from "effect";
 import { Llm, OpenCodeDriver } from "opencode-drive";
@@ -45,8 +46,29 @@ export default OpenCodeDriver.use(
     config: { autoupdate: false, plugins: [plugin] },
     tui: { viewport: { cols: 130, rows: 42 } },
   },
-  ({ ui, llm, artifacts }) =>
+  ({ ui, llm, artifacts, opencode }) =>
     Effect.gen(function* () {
+      const click = (id: string) =>
+        ui
+          .getElement({ id })
+          .pipe(Effect.flatMap((element) => ui.click(element)));
+      const command = (title: string) =>
+        Effect.gen(function* () {
+          yield* ui.press("p", { ctrl: true });
+          yield* ui.type(title);
+          yield* ui.waitFor(title);
+          yield* ui.enter();
+        });
+      const closed = () =>
+        ui.waitFor(
+          (state) =>
+            !state.elements.some((element) => element.id === "beads-close"),
+        );
+      const focusPane = (direction: "left" | "right") =>
+        Effect.gen(function* () {
+          yield* ui.press("x", { ctrl: true });
+          yield* ui.arrow(direction);
+        });
       yield* bd(artifacts, [
         "init",
         "--prefix",
@@ -75,11 +97,16 @@ export default OpenCodeDriver.use(
         "--deps",
         "drv-ready",
       ]);
+      yield* command("Toggle Beads workbench");
+      yield* ui.waitFor("drv-ready");
+      yield* Effect.log(yield* ui.screenshot("beads-home"));
+      yield* command("Toggle Beads workbench");
+      yield* closed();
       yield* llm.queue(Llm.text("Ready to inspect the Beads fixture."));
       yield* ui.submit("Prepare to inspect work.");
       yield* ui.waitFor("Ready to inspect the Beads fixture.");
       yield* ui.type("/beads");
-      yield* ui.waitFor("Open Beads workbench");
+      yield* ui.waitFor("Toggle Beads workbench");
       yield* Effect.log(yield* ui.screenshot("beads-slash-command"));
       yield* ui.enter();
       yield* ui
@@ -92,11 +119,82 @@ export default OpenCodeDriver.use(
           ),
         );
       yield* Effect.log(yield* ui.screenshot("beads-ready"));
+      yield* command("Toggle Beads workbench");
+      yield* closed();
+      yield* ui.submit("/beads");
+      yield* ui.waitFor("drv-ready");
+      yield* focusPane("left");
+      yield* ui.waitFor("Click here to focus Beads");
+      yield* ui.submit("/beads");
+      yield* closed();
+      yield* ui.submit("/beads");
+      yield* ui.waitFor("drv-ready");
+      yield* click("beads-tab-open");
+      yield* ui.waitFor("drv-blocked");
+      yield* click("bead-row-drv-blocked");
+      yield* ui.waitFor("Wait for the ready bead");
+      yield* click("beads-back");
+      yield* click("beads-tab-ready");
+      yield* ui.waitFor("drv-ready");
+      yield* click("beads-search");
+      yield* ui.type("drv-ready");
+      yield* focusPane("left");
+      yield* focusPane("right");
+      yield* focusPane("right");
+      yield* ui.waitFor((state) =>
+        state.elements.some(
+          (element) => element.id === "beads-search-input" && element.focused,
+        ),
+      );
+      yield* ui.type("-missing");
+      yield* ui.waitFor("No matches");
+      yield* click("beads-clear-search");
+      yield* click("bead-row-drv-ready");
+      yield* ui.waitFor("Acceptance criteria");
+      yield* ui.press("escape");
+      yield* ui.getElement({ id: "bead-row-drv-ready" });
+      yield* click("beads-fullscreen");
+      yield* ui.waitFor((state) =>
+        state.elements.some(
+          (element) => element.id === "beads-list" && element.width > 100,
+        ),
+      );
+      yield* Effect.log(yield* ui.screenshot("beads-fullscreen"));
+      yield* ui.press("f");
+      yield* ui.waitFor((state) =>
+        state.elements.some(
+          (element) => element.id === "beads-list" && element.width < 100,
+        ),
+      );
+      const list = yield* ui.getElement({ id: "beads-list" });
+      const close = yield* ui.getElement({ id: "beads-close" });
+      yield* focusPane("left");
+      yield* ui.waitFor("Click here to focus Beads");
+      yield* ui.mouse({
+        action: "down",
+        x: list.x,
+        y: close.y,
+        button: "left",
+      });
+      yield* ui.mouse({ action: "up", x: list.x, y: close.y, button: "left" });
+      yield* ui.waitFor("Keyboard in Beads");
+      yield* focusPane("right");
       yield* ui.enter();
       yield* ui.waitFor("Acceptance criteria");
       yield* Effect.log(yield* ui.screenshot("beads-detail"));
+      yield* click("beads-attach");
+      yield* ui.waitFor("drv-ready added to conversation context");
+      const sessions = yield* opencode.session.list();
+      assert.equal(sessions.data.length, 1);
+      const sessionID = sessions.data[0]!.id;
+      const entries = yield* opencode.session.instructions.entry.list({
+        sessionID,
+      });
+      assert.equal(entries.length, 1);
+      assert.match(JSON.stringify(entries[0]!.value), /"id":"drv-ready"/);
+      assert.deepEqual(yield* opencode.session.inbox.list({ sessionID }), []);
       yield* llm.queue(Llm.text("Claimed work received."));
-      yield* ui.press("s");
+      yield* click("beads-start");
       yield* ui.waitFor("Linked: drv-ready");
       yield* ui.waitFor("started");
       yield* ui.waitFor("Nothing ready");
@@ -128,6 +226,31 @@ export default OpenCodeDriver.use(
       yield* ui.waitFor("2 shown");
       yield* ui.resize({ cols: 60, rows: 30 });
       yield* ui.waitFor("in_progress");
+      yield* ui.waitFor(
+        () =>
+          ui
+            .matches("work prompt submitted")
+            .pipe(Effect.map((shown) => !shown)),
+        { timeout: 10_000 },
+      );
       yield* Effect.log(yield* ui.screenshot("beads-narrow"));
-    }),
+      yield* click("beads-close");
+      yield* closed();
+    }).pipe(
+      Effect.tapError(() =>
+        Effect.gen(function* () {
+          yield* Effect.log(yield* ui.screenshot("beads-interaction-failure"));
+          yield* Effect.log(
+            (yield* ui.capture()).lines
+              .map((line) => line.spans.map((span) => span.text).join(""))
+              .join("\n"),
+          );
+          yield* Effect.log(
+            (yield* ui.state()).elements.filter((element) =>
+              element.id.startsWith("beads-"),
+            ),
+          );
+        }),
+      ),
+    ),
 );

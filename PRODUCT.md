@@ -5,15 +5,23 @@ owns readiness, status, and ownership.
 
 ## Browse
 
-`/beads` opens a session panel, or a full-page workbench outside a session.
-Use the host's theme, focus, and fullscreen behavior.
+`/beads` toggles a session panel, or a full-page workbench outside a session.
+Show keyboard ownership and the configured shortcut back to the conversation.
+Clicks activate the panel; returning focus restores the current list, detail,
+or search widget without taking focus from host dialogs. Hide the size action
+when narrow terminals force fullscreen.
 
 - Default to Ready; also offer In progress and Open. Use Beads' dependency-aware
   readiness, never infer it from status.
 - Show IDs, priority, status, title, and owner with keyboard navigation and visible
   shortcuts. Search loaded results by ID, title, owner, and label; show the cap.
+- Rows support click-to-inspect and mouse-wheel scrolling. View tabs, Search,
+  Clear, Back, Refresh, Close, Add context, and Claim & start are clickable.
 - Inspect description, design, acceptance criteria, notes, and dependencies.
-  **Add context** sends the bead to the conversation without claiming or starting it.
+  **Add context** stores a passive session reference without claiming work or
+  queuing a model turn. Reattaching updates that bead's location-specific entry.
+  Beads larger than the host's 8 KiB entry limit retain an explicit full-lookup
+  reference; resolving it requires the session to be in the recorded location.
 - Refresh explicitly, preserve selection by ID, cancel superseded requests, and
   abort work on close. Distinguish loading, empty results, search misses, missing
   `bd`, uninitialized workspace, and backend/refresh failures. Give actionable

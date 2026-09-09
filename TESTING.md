@@ -59,7 +59,9 @@ Package smoke checks both the compatible `linked` and collection `links` RPCs.
 Run `bun run test:tui` after UI changes and inspect its screenshots.
 `opencode-drive@2.1.0` runs the installed CLI with a simulated LLM and disposable
 Beads database. `scripts/tui-drive.ts` checks `/beads` autocomplete before opening
-the workbench, then exercises loaded results, detail,
+the workbench, then exercises home/session toggling, mouse tabs and rows,
+composer/panel focus, search recovery and clearing, fullscreen round-trips, detail,
+passive context attachment followed by Start without an extra model turn,
 two independent Claim & start actions in one session, prompt responses, Ready
 refresh, In progress, and a 60-column
 fullscreen view. Drive typechecks the scenario before execution.

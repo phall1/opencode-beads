@@ -3,6 +3,7 @@ import type { Context } from "@opencode/plugin/tui/context";
 import type { Issue } from "../beads/schema";
 import type { WorkLink, WorkResult } from "../work/schema";
 import { displayText, errorMessage } from "../text";
+import { Action } from "./action";
 
 export interface WorkActions {
   links(signal: AbortSignal): Promise<WorkLink[]>;
@@ -83,7 +84,7 @@ export function WorkControls(props: {
   }));
 
   return (
-    <box flexDirection="column" flexShrink={0}>
+    <box flexDirection="column" flexShrink={0} marginTop={1}>
       <Show when={links().length > 1}>
         <text fg={props.context.theme.text.subdued}>
           {links().length} linked beads in this workspace
@@ -97,11 +98,16 @@ export function WorkControls(props: {
         )}
       </Show>
       <Show when={props.issue}>
-        <text fg={props.context.theme.text.default}>
-          {busy()
-            ? "Claiming and starting…"
-            : "s Claim & start here (changes ownership)"}
-        </text>
+        <box flexDirection="row">
+          <Action
+            context={props.context}
+            id="beads-start"
+            primary
+            label={busy() ? "Claiming and starting…" : "s Claim & start here"}
+            disabled={busy()}
+            run={start}
+          />
+        </box>
       </Show>
       <Show when={failure()}>
         <text fg={props.context.theme.text.feedback.error.default}>

@@ -19,7 +19,9 @@ Add to `opencode.jsonc`:
 
 ## Usage
 
-Run `/beads` to open the workbench.
+Run `/beads` to toggle the workbench. Click a row to inspect it; tabs and actions
+work with the mouse too. The header shows keyboard focus and your configured
+shortcut back to the conversation.
 
 | Key                  | Action                                         |
 | -------------------- | ---------------------------------------------- |

@@ -9,6 +9,7 @@ import { deferred, issue, result } from "./fixtures";
 import type { ListResult } from "../src/beads/schema";
 import type { WorkActions } from "../src/workbench/work-actions";
 import type { WorkLink } from "../src/work/schema";
+import { BoxRenderable, type ScrollBoxRenderable } from "@opentui/core";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -24,6 +25,7 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
   const context = {
     theme: resolveThemeDocument(DEFAULT_THEME),
     keymap: {
+      shortcuts: () => [],
       layer: (factory: () => KeymapLayer) => {
         layers.add(factory);
         onCleanup(() => layers.delete(factory));
@@ -49,17 +51,19 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
         pending.push(Promise.resolve(command.run(undefined, event)));
       });
       return (
-        <WorkbenchView
-          context={context}
-          reader={reader}
-          directory="/workspace/demo"
-          focused={focused()}
-          work={work}
-          close={() => {}}
-          attach={async (item) => {
-            attached.push(item.id);
-          }}
-        />
+        <box id="host-panel" focusable flexGrow={1}>
+          <WorkbenchView
+            context={context}
+            reader={reader}
+            directory="/workspace/demo"
+            focused={focused()}
+            work={work}
+            close={() => {}}
+            attach={async (item) => {
+              attached.push(item.id);
+            }}
+          />
+        </box>
       );
     },
     { width, height: 24, kittyKeyboard: true },
@@ -70,7 +74,13 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
     await Promise.all(pending.splice(0));
     await screen.flush();
   }
-  return { ...screen, attached, key, setFocused, layers };
+  async function click(id: string) {
+    const target = screen.renderer.root.findDescendantById(id)!;
+    expect(target).toBeDefined();
+    await screen.mockMouse.click(target.x + 1, target.y);
+    await screen.flush();
+  }
+  return { ...screen, attached, key, click, setFocused, layers };
 }
 
 function enabled(value: KeymapLayer["enabled"]) {
@@ -93,7 +103,7 @@ test("native keyboard list → detail → attach; narrow terminal renders useful
   screen.mockInput.pressEnter();
   await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
   expect(screen.captureCharFrame()).toContain("Finish with evidence");
-  expect(screen.captureCharFrame()).toMatch(/BEADS +Your next useful move/);
+  expect(screen.captureCharFrame()).toContain("Keyboard in Beads");
   expect(screen.captureCharFrame()).toContain("/ Search loaded results");
   await screen.key("a");
   expect(screen.attached).toEqual(["demo-2"]);
@@ -107,6 +117,73 @@ test("native keyboard list → detail → attach; narrow terminal renders useful
   await screen.key("/");
   await screen.mockInput.typeText("ar123-not-a-bead");
   await screen.waitForFrame((frame) => frame.includes("No matches"));
+});
+
+test("mouse rows and actions work; ancestor focus restores search without stealing a dialog", async () => {
+  const issues = [issue(), issue("demo-2", "Mouse-selected bead")];
+  const screen = await render({
+    list: async () => result(issues),
+    show: async (id) => issues.find((item) => item.id === id)!,
+  });
+  await screen.waitForFrame((frame) => frame.includes("demo-2"));
+  await screen.click("bead-row-demo-2");
+  await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
+  await screen.click("beads-attach");
+  expect(screen.attached).toEqual(["demo-2"]);
+  await screen.click("beads-back");
+  await screen.click("beads-search");
+  const host = screen.renderer.root.findDescendantById("host-panel")!;
+  host.focus();
+  await screen.flush();
+  expect(screen.renderer.currentFocusedRenderable?.id).toBe(
+    "beads-search-input",
+  );
+  await screen.mockInput.typeText("Mouse-selected");
+  await screen.flush();
+  expect(screen.captureCharFrame()).toContain("1 shown");
+  const dialog = new BoxRenderable(screen.renderer, {
+    id: "dialog",
+    focusable: true,
+  });
+  screen.renderer.root.add(dialog);
+  dialog.focus();
+  await screen.flush();
+  expect(screen.renderer.currentFocusedRenderable).toBe(dialog);
+  dialog.destroy();
+  host.focus();
+  await screen.flush();
+  expect(screen.renderer.currentFocusedRenderable?.id).toBe(
+    "beads-search-input",
+  );
+  await screen.click("bead-row-demo-2");
+  await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
+  expect(screen.captureCharFrame()).not.toContain("Enter apply");
+  await screen.key("a");
+  expect(screen.attached).toEqual(["demo-2", "demo-2"]);
+});
+
+test("keyboard selection stays visible beyond the first screen of rows", async () => {
+  const issues = Array.from({ length: 30 }, (_, i) =>
+    issue(`demo-${i}`, `Bead number ${i}`),
+  );
+  const screen = await render({
+    list: async () => result(issues),
+    show: async (id) => issues.find((item) => item.id === id)!,
+  });
+  await screen.waitForFrame((frame) => frame.includes("demo-0"));
+  const list = screen.renderer.root.findDescendantById(
+    "beads-list",
+  ) as ScrollBoxRenderable;
+  await screen.mockMouse.scroll(list.x + 1, list.y + 1, "down");
+  await screen.flush();
+  expect(list.scrollTop).toBeGreaterThan(0);
+  for (let i = 0; i < 20; i++) await screen.key("j");
+  expect(screen.captureCharFrame()).toContain("Bead number 20");
+  await screen.key("RETURN");
+  await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
+  expect(screen.captureCharFrame()).toContain("Bead number 20");
+  await screen.key("ESCAPE");
+  expect(screen.captureCharFrame()).toContain("Bead number 20");
 });
 
 test("loading transitions into honest empty state", async () => {
