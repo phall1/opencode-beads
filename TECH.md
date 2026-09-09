@@ -33,7 +33,10 @@ with their mount; server registrations and background fibers dispose with Scope.
 
 Keep reactive UI modules in `.tsx`, even without JSX: the tested compiled CLI
 bypasses the required runtime transform for `.ts` store imports. Source-render
-tests do not detect this failure. Load `dev-plugin/` for dogfooding: directory
+tests do not detect this failure. `model.ts` forwards to `model.tsx` to preserve
+the old path tracked by long-lived CLI loader caches after the rename; removing
+it can prevent TUI activation with `ENOENT` even after a service restart.
+Load `dev-plugin/` for dogfooding: directory
 watching is recursive, while imported sources are watched individually. A service
 that previously loaded the repository root can retain that watcher until restart.
 

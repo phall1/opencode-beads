@@ -78,7 +78,10 @@ export default OpenCodeDriver.use(
       yield* llm.queue(Llm.text("Ready to inspect the Beads fixture."));
       yield* ui.submit("Prepare to inspect work.");
       yield* ui.waitFor("Ready to inspect the Beads fixture.");
-      yield* ui.submit("/beads");
+      yield* ui.type("/beads");
+      yield* ui.waitFor("Open Beads workbench");
+      yield* Effect.log(yield* ui.screenshot("beads-slash-command"));
+      yield* ui.enter();
       yield* ui
         .waitFor("drv-ready")
         .pipe(
