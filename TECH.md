@@ -7,6 +7,12 @@ Use the installed SDK types and the V2 [plugin][plugins], [Effect][effect],
 
 ## Boundaries
 
+Design references (reviewed 2026-09-09): [Kit's hierarchy essay][design],
+[ghui's queue and preview][ghui], [Visual Effect's interaction feedback][visual],
+and [OpenCode's restrained hierarchy][site]. Apply these as interaction principles,
+not copied branding. Preview reads follow selection, are abortable, and never
+change Beads ownership or submit work.
+
 ```text
 index.ts         Effect server: RPC and agent tools
 server.ts        local-directory loader entrypoint
@@ -107,3 +113,7 @@ this gap with private imports or invented types.
 [effect]: https://opencode.ai/v2/docs/build/plugins/effect
 [cli]: https://opencode.ai/v2/docs/build/plugins/cli
 [rpc]: https://opencode.ai/v2/docs/build/plugins/rpc
+[design]: https://kitlangton.com/posts/spare-thoughts-on-app-design/
+[ghui]: https://github.com/kitlangton/ghui
+[visual]: https://github.com/kitlangton/visual-effect
+[site]: https://opencode.ai

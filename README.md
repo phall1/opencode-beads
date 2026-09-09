@@ -22,6 +22,8 @@ Add to `opencode.jsonc`:
 Run `/beads` to toggle the workbench. Click a row to inspect it; tabs and actions
 work with the mouse too. The header shows keyboard focus and your configured
 shortcut back to the conversation.
+Selection previews the bead when space allows. Enter opens full detail with
+claim and context actions beside it; compact panels keep the queue in focus.
 
 | Key                  | Action                                         |
 | -------------------- | ---------------------------------------------- |

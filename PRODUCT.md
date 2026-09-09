@@ -5,6 +5,13 @@ owns readiness, status, and ownership.
 
 ## Browse
 
+Design the queue around choosing useful work: titles lead, metadata recedes,
+and selecting a bead reveals a read-only preview when space allows. Enter opens
+full detail; claim and context actions live beside that detail with in-place
+feedback. At small widths keep every mouse control reachable; remove secondary
+chrome before sacrificing content. Use host theme tokens, restrained separators,
+and distinct hover, selection, and keyboard-focus states.
+
 `/beads` toggles a session panel, or a full-page workbench outside a session.
 Show keyboard ownership and the configured shortcut back to the conversation.
 Clicks activate the panel; returning focus restores the current list, detail,

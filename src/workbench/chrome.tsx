@@ -7,14 +7,19 @@ export function WorkbenchHeader(props: {
   context: Context;
   directory: string;
   focused: boolean;
+  width: number;
+  conversationAvailable?: boolean;
   close(): void;
   fullscreen?: () => void;
 }) {
   const theme = props.context.theme;
   return (
     <box flexDirection="column" flexShrink={0} marginBottom={1}>
-      <box flexDirection="row" justifyContent="space-between" height={1}>
-        <text id="beads-heading" fg={theme.text.status.running}>
+      <box flexDirection="row" justifyContent="space-between" flexWrap="wrap">
+        <text
+          id="beads-heading"
+          fg={props.focused ? theme.text.status.running : theme.text.subdued}
+        >
           <b>Beads</b>
         </text>
         <box flexDirection="row" gap={1}>
@@ -23,7 +28,7 @@ export function WorkbenchHeader(props: {
               <Action
                 context={props.context}
                 id="beads-fullscreen"
-                label="f Resize"
+                label={props.width < 40 ? "f Size" : "f Resize"}
                 run={fullscreen()}
               />
             )}
@@ -31,31 +36,54 @@ export function WorkbenchHeader(props: {
           <Action
             context={props.context}
             id="beads-close"
-            label="× Close"
+            label={props.width < 40 ? "×" : "× Close"}
             run={props.close}
           />
         </box>
       </box>
       <text fg={theme.text.subdued} height={1} wrapMode="none">
-        {displayText(shortPath(props.context.ui.format.path(props.directory)))}
+        {displayText(
+          shortPath(
+            props.context.ui.format.path(props.directory),
+            props.width - 4,
+          ),
+        )}
       </text>
-      <text fg={theme.text.subdued} height={1}>
-        {focusHint(props.context, props.focused, Boolean(props.fullscreen))}
+      <text fg={theme.text.subdued} height={1} wrapMode="none">
+        {focusHint(
+          props.context,
+          props.focused,
+          Boolean(props.conversationAvailable),
+          props.width - 4,
+        )}
       </text>
     </box>
   );
 }
 
-function shortPath(path: string) {
-  if (path.length <= 48) return path;
-  return `…${path.slice(-45)}`;
+function shortPath(path: string, width: number) {
+  if (path.length <= width) return path;
+  return `…${path.slice(-Math.max(1, width - 1))}`;
 }
 
-function focusHint(context: Context, focused: boolean, split: boolean) {
-  if (!focused) return "Click here to focus Beads";
+function focusHint(
+  context: Context,
+  focused: boolean,
+  split: boolean,
+  width: number,
+) {
+  if (!focused)
+    return width < 24 ? "Click to focus Beads" : "Click here to focus Beads";
   const shortcuts = context.keymap.shortcuts("pane.focus.left");
-  if (split && shortcuts.length)
-    return `Keyboard in Beads · ${shortcuts[0]} conversation`;
+  if (split && shortcuts.length) return conversationHint(shortcuts[0]!, width);
+  return "Keyboard in Beads";
+}
+
+function conversationHint(shortcut: string, width: number) {
+  const full = `Keyboard in Beads · ${shortcut} conversation`;
+  if (Bun.stringWidth(full) <= width) return full;
+  const compact = `Beads · ${shortcut} conversation`;
+  if (Bun.stringWidth(compact) <= width) return compact;
   return "Keyboard in Beads";
 }
 
@@ -65,12 +93,10 @@ export function WorkbenchFooter(props: {
   searching: boolean;
   back(): void;
   refresh(): unknown;
-  attach?: () => unknown;
-  attaching: boolean;
 }) {
   return (
     <box flexDirection="column" flexShrink={0} marginTop={1} gap={1}>
-      <box flexDirection="row" gap={1}>
+      <box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={0}>
         <Show when={props.inspecting}>
           <Action
             context={props.context}
@@ -78,17 +104,6 @@ export function WorkbenchFooter(props: {
             label="Esc Back"
             run={props.back}
           />
-          <Show when={props.attach}>
-            {(attach) => (
-              <Action
-                context={props.context}
-                id="beads-attach"
-                label={props.attaching ? "Adding…" : "a Add context"}
-                disabled={props.attaching}
-                run={attach()}
-              />
-            )}
-          </Show>
         </Show>
         <Action
           context={props.context}

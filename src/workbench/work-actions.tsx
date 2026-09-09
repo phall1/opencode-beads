@@ -1,4 +1,11 @@
-import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import {
+  Show,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  type JSX,
+} from "solid-js";
 import type { Context } from "@opencode/plugin/tui/context";
 import type { Issue } from "../beads/schema";
 import type { WorkLink, WorkResult } from "../work/schema";
@@ -16,6 +23,7 @@ export function WorkControls(props: {
   issue?: Issue;
   focused: boolean;
   refresh(): Promise<void>;
+  children?: JSX.Element;
 }) {
   const lifetime = new AbortController();
   const [links, setLinks] = createSignal<WorkLink[]>([]);
@@ -77,7 +85,8 @@ export function WorkControls(props: {
         id: "beads.start",
         title: "Claim bead and start here",
         bind: "s",
-        enabled: () => Boolean(props.issue) && !busy(),
+        enabled: () =>
+          Boolean(props.issue) && !busy() && link()?.phase !== "started",
         run: start,
       },
     ],
@@ -98,15 +107,22 @@ export function WorkControls(props: {
         )}
       </Show>
       <Show when={props.issue}>
-        <box flexDirection="row">
+        <box
+          flexDirection="row"
+          flexWrap="wrap"
+          columnGap={1}
+          rowGap={0}
+          marginBottom={1}
+        >
           <Action
             context={props.context}
             id="beads-start"
             primary
-            label={busy() ? "Claiming and starting…" : "s Claim & start here"}
-            disabled={busy()}
+            label={startLabel(busy(), link()?.phase)}
+            disabled={busy() || link()?.phase === "started"}
             run={start}
           />
+          {props.children}
         </box>
       </Show>
       <Show when={failure()}>
@@ -116,4 +132,11 @@ export function WorkControls(props: {
       </Show>
     </box>
   );
+}
+
+function startLabel(busy: boolean, phase?: WorkLink["phase"]) {
+  if (busy) return "Starting…";
+  if (phase === "started") return "✓ Started";
+  if (phase) return "s Resume start";
+  return "s Claim & start";
 }

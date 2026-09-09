@@ -69,6 +69,25 @@ export default OpenCodeDriver.use(
           yield* ui.press("x", { ctrl: true });
           yield* ui.arrow(direction);
         });
+      const resizePanel = (width: number) =>
+        Effect.gen(function* () {
+          const panel = yield* ui.getElement({ id: "session-panel" });
+          const x = 130 - width - 1;
+          yield* ui.mouse({
+            action: "down",
+            x: panel.x - 1,
+            y: panel.y + 1,
+            button: "left",
+          });
+          yield* ui.mouse({ action: "move", x, y: panel.y + 1 });
+          yield* ui.mouse({ action: "up", x, y: panel.y + 1, button: "left" });
+          yield* ui.waitFor((state) =>
+            state.elements.some(
+              (element) =>
+                element.id === "session-panel" && element.width === width,
+            ),
+          );
+        });
       yield* bd(artifacts, [
         "init",
         "--prefix",
@@ -79,17 +98,17 @@ export default OpenCodeDriver.use(
       ]);
       yield* bd(artifacts, [
         "create",
-        "Drive ready bead",
+        "Polish the Beads workbench",
         "--id",
         "drv-ready",
         "--description",
-        "Exercise the actual compiled TUI",
+        "Make choosing work feel immediate.\n\nKeep the queue readable, make keyboard focus obvious, and place the next action beside the bead.",
         "--acceptance",
-        "List, inspect, claim, and render at narrow widths",
+        "Mouse and keyboard agree. Search never steals typing. The workbench stays useful in a narrow panel.",
       ]);
       yield* bd(artifacts, [
         "create",
-        "Drive dependent bead",
+        "Recover claims after a reload",
         "--id",
         "drv-blocked",
         "--description",
@@ -131,12 +150,21 @@ export default OpenCodeDriver.use(
       yield* ui.waitFor("drv-ready");
       yield* click("beads-tab-open");
       yield* ui.waitFor("drv-blocked");
+      yield* focusPane("left");
       yield* click("bead-row-drv-blocked");
       yield* ui.waitFor("Wait for the ready bead");
+      yield* ui.waitFor("Keyboard in Beads");
+      yield* focusPane("left");
       yield* click("beads-back");
       yield* click("beads-tab-ready");
       yield* ui.waitFor("drv-ready");
+      yield* focusPane("left");
       yield* click("beads-search");
+      yield* ui.waitFor((state) =>
+        state.elements.some(
+          (element) => element.id === "beads-search-input" && element.focused,
+        ),
+      );
       yield* ui.type("drv-ready");
       yield* focusPane("left");
       yield* focusPane("right");
@@ -148,6 +176,7 @@ export default OpenCodeDriver.use(
       );
       yield* ui.type("-missing");
       yield* ui.waitFor("No matches");
+      yield* focusPane("left");
       yield* click("beads-clear-search");
       yield* click("bead-row-drv-ready");
       yield* ui.waitFor("Acceptance criteria");
@@ -156,16 +185,48 @@ export default OpenCodeDriver.use(
       yield* click("beads-fullscreen");
       yield* ui.waitFor((state) =>
         state.elements.some(
-          (element) => element.id === "beads-list" && element.width > 100,
+          (element) => element.id === "beads-search" && element.width > 100,
         ),
       );
+      yield* ui.waitFor("Make choosing work feel immediate.");
       yield* Effect.log(yield* ui.screenshot("beads-fullscreen"));
+      yield* ui.waitFor(() =>
+        ui.matches("ctrl+x ← conversation").pipe(Effect.map((shown) => !shown)),
+      );
       yield* ui.press("f");
       yield* ui.waitFor((state) =>
         state.elements.some(
-          (element) => element.id === "beads-list" && element.width < 100,
+          (element) => element.id === "beads-search" && element.width < 100,
         ),
       );
+      for (const width of [24, 40]) {
+        yield* resizePanel(width);
+        yield* click("bead-row-drv-ready");
+        yield* ui.waitFor("Claim & start");
+        const panel = yield* ui.getElement({ id: "session-panel" });
+        for (const id of [
+          "beads-fullscreen",
+          "beads-close",
+          "beads-start",
+          "beads-attach",
+          "beads-back",
+          "beads-refresh",
+        ]) {
+          const control = yield* ui.getElement({ id });
+          assert.ok(
+            control.x >= panel.x &&
+              control.x + control.width <= panel.x + panel.width,
+            `${id} fits ${width} columns`,
+          );
+          assert.ok(
+            control.y + control.height <= panel.y + panel.height,
+            `${id} stays visible`,
+          );
+        }
+        yield* Effect.log(yield* ui.screenshot(`beads-panel-${width}`));
+        yield* click("beads-back");
+      }
+      yield* resizePanel(65);
       const list = yield* ui.getElement({ id: "beads-list" });
       const close = yield* ui.getElement({ id: "beads-close" });
       yield* focusPane("left");
@@ -202,7 +263,7 @@ export default OpenCodeDriver.use(
       yield* Effect.log(yield* ui.screenshot("beads-started"));
       yield* bd(artifacts, [
         "create",
-        "Drive second independent bead",
+        "Close work with evidence",
         "--id",
         "drv-second",
         "--description",

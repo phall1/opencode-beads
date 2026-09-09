@@ -1,14 +1,23 @@
-import { For, Show } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Context } from "@opencode/plugin/tui/context";
 import type { Workbench } from "./model";
 import type { Issue } from "../beads/schema";
 import { displayText } from "../text";
+import { afterMouseDispatch } from "./mouse";
 
 function owner(issue: Issue) {
   if (!issue.assignee) return "Unassigned";
-  if (issue.assignee.startsWith("opencode:")) return "OpenCode session";
+  if (issue.assignee.startsWith("opencode:"))
+    return `Session …${issue.assignee.slice(-6)}`;
   return issue.assignee;
+}
+
+function metadata(issue: Issue) {
+  const parts = [issue.id, `P${issue.priority}`];
+  if (issue.status !== "open") parts.push(issue.status);
+  if (issue.assignee) parts.push(owner(issue));
+  return displayText(parts.join(" · "));
 }
 
 export function IssueList(props: {
@@ -34,13 +43,21 @@ export function IssueList(props: {
   }
 
   props.context.keymap.layer(() => ({
-    enabled: () => props.focused,
+    enabled: () =>
+      props.focused &&
+      model.state.phase === "ready" &&
+      model.visible().length > 0,
     commands: [
       { bind: "up", run: () => move(-1) },
       { bind: "k", run: () => move(-1) },
       { bind: "down", run: () => move(1) },
       { bind: "j", run: () => move(1) },
-      { bind: "return", run: () => props.inspect() },
+      {
+        bind: "return",
+        enabled: () =>
+          model.visible().some((issue) => issue.id === model.state.selectedID),
+        run: () => props.inspect(),
+      },
     ],
   }));
 
@@ -76,39 +93,44 @@ export function IssueList(props: {
             }
           >
             <For each={model.visible()}>
-              {(issue) => (
-                <box
-                  id={`bead-row-${issue.id}`}
-                  flexDirection="column"
-                  flexShrink={0}
-                  height={3}
-                  onSizeChange={() => {
-                    if (model.state.selectedID === issue.id)
-                      scroll?.scrollChildIntoView(`bead-row-${issue.id}`);
-                  }}
-                  paddingX={1}
-                  backgroundColor={
-                    model.state.selectedID === issue.id
-                      ? theme.background.surface.offset
-                      : theme.background.default
-                  }
-                  onMouseDown={(event) => {
-                    if (event.button !== 0) return;
-                    model.select(issue.id);
-                    void props.inspect(issue.id);
-                  }}
-                >
-                  <text height={1} wrapMode="none" fg={theme.text.default}>
-                    {model.state.selectedID === issue.id ? "› " : "  "}
-                    <b>{displayText(issue.title)}</b>
-                  </text>
-                  <text height={1} wrapMode="none" fg={theme.text.subdued}>
-                    {displayText(
-                      `  ${issue.id} · P${issue.priority} · ${issue.status} · ${owner(issue)}`,
-                    )}
-                  </text>
-                </box>
-              )}
+              {(issue) => {
+                const [hovered, setHovered] = createSignal(false);
+                const inspect = afterMouseDispatch(() => {
+                  model.select(issue.id);
+                  return props.inspect(issue.id);
+                });
+                return (
+                  <box
+                    id={`bead-row-${issue.id}`}
+                    flexDirection="column"
+                    flexShrink={0}
+                    height={3}
+                    onSizeChange={() => {
+                      if (model.state.selectedID === issue.id)
+                        scroll?.scrollChildIntoView(`bead-row-${issue.id}`);
+                    }}
+                    paddingX={1}
+                    backgroundColor={
+                      model.state.selectedID === issue.id
+                        ? theme.background.surface.offset
+                        : hovered()
+                          ? theme.background.surface.overlay
+                          : theme.background.default
+                    }
+                    onMouseOver={() => setHovered(true)}
+                    onMouseOut={() => setHovered(false)}
+                    onMouseDown={inspect}
+                  >
+                    <text height={1} wrapMode="none" fg={theme.text.default}>
+                      {model.state.selectedID === issue.id ? "› " : "  "}
+                      <b>{displayText(issue.title)}</b>
+                    </text>
+                    <text height={1} wrapMode="none" fg={theme.text.subdued}>
+                      {`  ${metadata(issue)}`}
+                    </text>
+                  </box>
+                );
+              }}
             </For>
           </scrollbox>
         </Show>

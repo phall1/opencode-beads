@@ -16,11 +16,17 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function render(reader: Reader, width = 80, work?: WorkActions) {
+async function render(
+  reader: Reader,
+  width = 80,
+  work?: WorkActions,
+  height = 24,
+) {
   const layers = new Set<() => KeymapLayer>();
   const pending: Promise<unknown>[] = [];
   const [focused, setFocused] = createSignal(true);
   const attached: string[] = [];
+  let host: BoxRenderable;
   // Only the host methods this view consumes. The source is checked against the full SDK.
   const context = {
     theme: resolveThemeDocument(DEFAULT_THEME),
@@ -51,7 +57,18 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
         pending.push(Promise.resolve(command.run(undefined, event)));
       });
       return (
-        <box id="host-panel" focusable flexGrow={1}>
+        <box
+          id="host-panel"
+          ref={(node) => {
+            host = node;
+          }}
+          focusable
+          flexGrow={1}
+          onMouseDown={() => {
+            setFocused(true);
+            host.focus();
+          }}
+        >
           <WorkbenchView
             context={context}
             reader={reader}
@@ -66,7 +83,7 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
         </box>
       );
     },
-    { width, height: 24, kittyKeyboard: true },
+    { width, height, kittyKeyboard: true },
   );
   cleanups.push(() => screen.renderer.destroy());
   async function key(value: string) {
@@ -80,7 +97,7 @@ async function render(reader: Reader, width = 80, work?: WorkActions) {
     await screen.mockMouse.click(target.x + 1, target.y);
     await screen.flush();
   }
-  return { ...screen, attached, key, click, setFocused, layers };
+  return { ...screen, attached, key, click, setFocused, focused, layers };
 }
 
 function enabled(value: KeymapLayer["enabled"]) {
@@ -104,7 +121,7 @@ test("native keyboard list → detail → attach; narrow terminal renders useful
   await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
   expect(screen.captureCharFrame()).toContain("Finish with evidence");
   expect(screen.captureCharFrame()).toContain("Keyboard in Beads");
-  expect(screen.captureCharFrame()).toContain("/ Search loaded results");
+  expect(screen.captureCharFrame()).not.toContain("/ Search loaded results");
   await screen.key("a");
   expect(screen.attached).toEqual(["demo-2"]);
   await screen.key("ESCAPE");
@@ -160,6 +177,181 @@ test("mouse rows and actions work; ancestor focus restores search without steali
   expect(screen.captureCharFrame()).not.toContain("Enter apply");
   await screen.key("a");
   expect(screen.attached).toEqual(["demo-2", "demo-2"]);
+});
+
+test("row, search, clear and back clicks acquire ownership before replacing their targets", async () => {
+  const screen = await render({
+    list: async () => result(),
+    show: async () => issue(),
+  });
+  const composer = new BoxRenderable(screen.renderer, {
+    id: "composer",
+    focusable: true,
+  });
+  screen.renderer.root.add(composer);
+  const blur = () => {
+    screen.setFocused(false);
+    composer.focus();
+  };
+  await screen.waitForFrame((frame) => frame.includes("demo-1"));
+  blur();
+  await screen.click("bead-row-demo-1");
+  await screen.waitForFrame((frame) => frame.includes("Acceptance criteria"));
+  expect(screen.focused()).toBe(true);
+  expect(screen.renderer.currentFocusedRenderable?.id).toBe("beads-detail");
+  blur();
+  await screen.click("beads-back");
+  expect(screen.focused()).toBe(true);
+  blur();
+  await screen.click("beads-search");
+  expect(screen.focused()).toBe(true);
+  expect(screen.renderer.currentFocusedRenderable?.id).toBe(
+    "beads-search-input",
+  );
+  await screen.mockInput.typeText("missing");
+  await screen.flush();
+  blur();
+  await screen.click("beads-clear-search");
+  expect(screen.focused()).toBe(true);
+  expect(screen.renderer.currentFocusedRenderable?.id).toBe(
+    "beads-search-input",
+  );
+  expect(screen.captureCharFrame()).toContain("1 shown");
+});
+
+test("Enter cannot inspect retained selection during loading or after a failed refresh", async () => {
+  const refresh = deferred<ListResult>();
+  let lists = 0;
+  let shows = 0;
+  const screen = await render({
+    list: () => (++lists === 1 ? Promise.resolve(result()) : refresh.promise),
+    show: async () => {
+      shows++;
+      return issue();
+    },
+  });
+  await screen.waitForFrame((frame) => frame.includes("demo-1"));
+  await screen.click("beads-refresh");
+  expect(screen.captureCharFrame()).toContain("Loading beads");
+  await screen.key("RETURN");
+  expect(shows).toBe(0);
+  refresh.reject(new Error("Refresh unavailable"));
+  await screen.waitForFrame((frame) => frame.includes("Refresh unavailable"));
+  await screen.key("RETURN");
+  expect(shows).toBe(0);
+});
+
+test.each([24, 40])(
+  "mouse controls fit a %i-column side panel",
+  async (width) => {
+    const long = issue(
+      `demo-1-${"x".repeat(200)}-ID-END`,
+      `${"A long valid title with meaningful words. ".repeat(5)}TITLE-END`,
+    );
+    const screen = await render(
+      { list: async () => result([long]), show: async () => long },
+      width,
+      {
+        links: async () => [],
+        start: async () => {
+          throw new Error("Unexpected claim");
+        },
+      },
+    );
+    const fits = (id: string) => {
+      const target = screen.renderer.root.findDescendantById(id)!;
+      expect(target.x).toBeGreaterThanOrEqual(0);
+      expect(target.x + target.width).toBeLessThanOrEqual(width);
+      expect(target.y + target.height).toBeLessThanOrEqual(24);
+    };
+    await screen.waitForFrame((frame) => frame.includes("demo-1"));
+    for (const id of [
+      "beads-close",
+      "beads-tab-ready",
+      "beads-tab-in_progress",
+      "beads-tab-open",
+      "beads-refresh",
+    ])
+      fits(id);
+    await screen.click(`bead-row-${long.id}`);
+    await screen.waitForFrame((frame) => frame.includes("Add context"));
+    for (const id of [
+      "beads-close",
+      "beads-back",
+      "beads-attach",
+      "beads-start",
+      "beads-refresh",
+    ])
+      fits(id);
+    const detail = screen.renderer.root.findDescendantById(
+      "beads-detail",
+    ) as ScrollBoxRenderable;
+    expect(detail.height).toBeGreaterThan(0);
+    detail.scrollTo(detail.scrollHeight);
+    await screen.flush();
+    expect(screen.captureCharFrame()).toContain("ID-END");
+    await screen.click("beads-back");
+    expect(screen.captureCharFrame()).toContain("1 shown");
+  },
+);
+
+test("a new pending preview replaces the previous selection's error", async () => {
+  const first = deferred<ReturnType<typeof issue>>();
+  const second = deferred<ReturnType<typeof issue>>();
+  const screen = await render(
+    {
+      list: async () => result([issue(), issue("demo-2")]),
+      show: (id) => (id === "demo-1" ? first.promise : second.promise),
+    },
+    80,
+    undefined,
+    36,
+  );
+  first.reject(new Error("First bead unavailable"));
+  await screen.waitForFrame((frame) =>
+    frame.includes("First bead unavailable"),
+  );
+  await screen.key("j");
+  expect(screen.captureCharFrame()).toContain("SELECTED · demo-2");
+  expect(screen.captureCharFrame()).toContain("Loading preview");
+  expect(screen.captureCharFrame()).not.toContain("First bead unavailable");
+  second.resolve({ ...issue("demo-2"), description: "New preview loaded" });
+  await screen.waitForFrame((frame) => frame.includes("New preview loaded"));
+});
+
+test("selection previews cancel old reads and disappear at compact heights", async () => {
+  const first = deferred<ReturnType<typeof issue>>();
+  const second = deferred<ReturnType<typeof issue>>();
+  const calls: Array<{ id: string; signal: AbortSignal }> = [];
+  const screen = await render(
+    {
+      list: async () => result([issue(), issue("demo-2")]),
+      show: (id, signal) => {
+        calls.push({ id, signal });
+        return id === "demo-1" ? first.promise : second.promise;
+      },
+    },
+    80,
+    undefined,
+    36,
+  );
+  await screen.waitForFrame((frame) => frame.includes("Loading preview"));
+  await screen.key("j");
+  expect(calls.map((call) => call.id)).toEqual(["demo-1", "demo-2"]);
+  expect(calls[0]!.signal.aborted).toBe(true);
+  second.resolve({
+    ...issue("demo-2"),
+    description: "Current selected preview",
+  });
+  first.resolve({ ...issue(), description: "Stale preview must not return" });
+  await screen.waitForFrame((frame) =>
+    frame.includes("Current selected preview"),
+  );
+  expect(screen.captureCharFrame()).not.toContain("Stale preview");
+  screen.resize(24, 24);
+  await screen.flush();
+  expect(screen.captureCharFrame()).not.toContain("SELECTED");
+  expect(calls[1]!.signal.aborted).toBe(true);
 });
 
 test("keyboard selection stays visible beyond the first screen of rows", async () => {
@@ -275,7 +467,7 @@ test("Start is explicit, then displays the durable link and refreshes Ready", as
   await screen.waitForFrame((frame) => frame.includes("demo-1"));
   expect(started).toBe(false);
   screen.mockInput.pressEnter();
-  await screen.waitForFrame((frame) => frame.includes("Claim & start here"));
+  await screen.waitForFrame((frame) => frame.includes("Claim & start"));
   expect(started).toBe(false);
   await screen.key("s");
   initialLink.resolve([]);
@@ -315,7 +507,7 @@ test("Start refreshes existing links even when the initial collection arrives la
   );
   await screen.waitForFrame((frame) => frame.includes("demo-2"));
   screen.mockInput.pressEnter();
-  await screen.waitForFrame((frame) => frame.includes("Claim & start here"));
+  await screen.waitForFrame((frame) => frame.includes("Claim & start"));
   await screen.key("s");
   initial.resolve([{ ...first, phase: "claimed" }]);
   await screen.renderer.idle();

@@ -63,8 +63,13 @@ the workbench, then exercises home/session toggling, mouse tabs and rows,
 composer/panel focus, search recovery and clearing, fullscreen round-trips, detail,
 passive context attachment followed by Start without an extra model turn,
 two independent Claim & start actions in one session, prompt responses, Ready
-refresh, In progress, and a 60-column
+refresh, In progress, host-dragged 24/40-column side panels, and a 60-column
 fullscreen view. Drive typechecks the scenario before execution.
+
+Native regressions cover direct clicks from composer ownership, noninteractive
+loading/error lists, long-title control bounds at 24/40 columns, and canceled/stale
+selection previews including error recovery. The compiled scenario also checks direct row/Search clicks from the
+composer and suppresses the conversation-focus hint in fullscreen.
 
 Set `BEADS_PLUGIN_DIRECTORY` for another checkout and `OPENCODE_DRIVE_MEDIA_DIR`
 for screenshots. The compiled CLI's `.ts`/`.tsx` reactive-store loading regression

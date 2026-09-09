@@ -76,6 +76,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
             context={context}
             {...connected}
             focused={props.panel.focused}
+            conversationAvailable={props.panel.presentation === "panel"}
             close={props.panel.close}
             fullscreen={
               props.panel.presentation === "fullscreen" &&
