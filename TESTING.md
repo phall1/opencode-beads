@@ -65,8 +65,15 @@ The live beta-19378 CLI was also opened in a real PTY against this session and
 repository. It reproduced an indefinitely loading list while the linked-bead
 footer succeeded. Moving the reactive state module from `.ts` to `.tsx` restored
 the list through the host's actual runtime transform; the same PTY then displayed
-the real Ready records. This is the acceptance regression for `ocb-0sp` and a
+the real Ready records. This acceptance regression for `ocb-0sp` is
 now covered by the repeatable Drive scenario below.
+
+Compatibility evidence: SDK/plugin beta-19365, CLI beta-19378, Effect
+4.0.0-rc.112, OpenTUI 0.5.11, Solid 1.9.12, Bun 1.3.14, and Beads
+HEAD-7505e17 (Homebrew, embedded Dolt) on macOS. This Beads build's
+`show --readonly` writes `last-touched`, so full lookup uses `list --all --id`.
+Its proxied-server mode rejects strict readonly; the plugin surfaces that
+failure. Other Beads versions/backends have not been verified.
 
 ## Actual TUI regression with OpenCode Drive
 
