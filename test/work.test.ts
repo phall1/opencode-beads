@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import { createWork, type WorkHost } from "../src/work/service";
 import type { StoredWorkLink } from "../src/work/schema";
 import { BeadsError } from "../src/beads/process";
@@ -10,6 +10,7 @@ function rig() {
   const admitted = new Map<string, string>();
   let current = issue();
   current.assignee = "";
+  const records = new Map<string, ReturnType<typeof issue>>();
   let claims = 0;
   let submissions = 0;
   let losePromptResponse = false;
@@ -20,14 +21,19 @@ function rig() {
       wrongWorkspace
         ? Effect.fail(new BeadsError("workspace_changed", "Workspace moved"))
         : Effect.void,
-    load: (id) => Effect.sync(() => links.get(id) ?? null),
+    load: (sessionID, id) =>
+      Effect.sync(() => links.get(`${sessionID}/${id}`) ?? null),
+    list: (sessionID) =>
+      Effect.sync(() =>
+        [...links.values()].filter((link) => link.sessionID === sessionID),
+      ),
     save: (link) =>
       Effect.sync(() => {
-        links.set(link.sessionID, structuredClone(link));
+        links.set(`${link.sessionID}/${link.id}`, structuredClone(link));
       }),
-    remove: (id) =>
+    remove: (sessionID, id) =>
       Effect.sync(() => {
-        links.delete(id);
+        links.delete(`${sessionID}/${id}`);
       }),
     prompt: (link) =>
       Effect.gen(function* () {
@@ -44,19 +50,33 @@ function rig() {
       }),
   };
   const reader = {
-    show: () => Effect.sync(() => structuredClone(current)),
+    show: (id: string) =>
+      Effect.sync(() =>
+        structuredClone(
+          id === current.id
+            ? current
+            : (records.get(id) ?? { ...issue(id), assignee: "" }),
+        ),
+      ),
     ready: () => Effect.succeed(true),
   };
   const writer = {
-    claim: (_id: string, actor: string) =>
+    claim: (id: string, actor: string) =>
       Effect.gen(function* () {
         claims++;
         if (claimFailure === "conflict")
           return yield* Effect.fail(
             new BeadsError("ownership_conflict", "Owned by another session"),
           );
-        if (claimFailure !== "unapplied")
-          current = { ...current, assignee: actor, status: "in_progress" };
+        if (claimFailure !== "unapplied") {
+          const claimed = {
+            ...issue(id),
+            assignee: actor,
+            status: "in_progress",
+          };
+          if (id === current.id) current = claimed;
+          else records.set(id, claimed);
+        }
         if (claimFailure)
           return yield* Effect.fail(
             new BeadsError("timeout", "Outcome unknown"),
@@ -104,7 +124,7 @@ test("concurrent Start clicks claim and submit only once", async () => {
     "started",
   ]);
   expect(test.counts()).toEqual({ claims: 1, submissions: 1 });
-  expect(test.links.get(query.sessionID)?.actor).toBe("opencode:ses-alpha");
+  expect(test.links.get("ses-alpha/demo-1")?.actor).toBe("opencode:ses-alpha");
 });
 
 test("lost prompt response recovers across reload using the exact persisted ID and body", async () => {
@@ -113,7 +133,7 @@ test("lost prompt response recovers across reload using the exact persisted ID a
   await expect(
     Effect.runPromise(test.make().start(query)),
   ).rejects.toMatchObject({ code: "handoff_failed" });
-  expect(test.links.get(query.sessionID)?.phase).toBe("claimed");
+  expect(test.links.get("ses-alpha/demo-1")?.phase).toBe("claimed");
   test.changeTitle();
   expect((await Effect.runPromise(test.make().start(query))).link.phase).toBe(
     "started",
@@ -128,7 +148,7 @@ test("an uncertain write that landed is reconciled without another claim", async
   await expect(
     Effect.runPromise(test.make().start(query)),
   ).rejects.toMatchObject({ code: "outcome_unknown" });
-  expect(test.links.get(query.sessionID)?.phase).toBe("claim_pending");
+  expect(test.links.get("ses-alpha/demo-1")?.phase).toBe("claim_pending");
   await Effect.runPromise(test.make().start(query));
   expect(test.counts()).toEqual({ claims: 1, submissions: 1 });
 });
@@ -155,7 +175,7 @@ test("a refused claim releases the pending link without submitting work", async 
   expect(test.admitted.size).toBe(0);
 });
 
-test("moved sessions, a different linked bead, and ownership loss cannot start work", async () => {
+test("moved sessions and ownership loss cannot start work", async () => {
   const moved = rig();
   moved.move();
   await expect(
@@ -164,9 +184,6 @@ test("moved sessions, a different linked bead, and ownership loss cannot start w
   expect(moved.counts().claims).toBe(0);
   const linked = rig();
   await Effect.runPromise(linked.make().claim(query));
-  await expect(
-    Effect.runPromise(linked.make().start({ ...query, id: "demo-2" })),
-  ).rejects.toMatchObject({ code: "session_linked" });
   linked.loseOwnership();
   await expect(
     Effect.runPromise(linked.make().start(query)),
@@ -201,7 +218,7 @@ test("retained old claim executor and new Start share one canonical intent", asy
   release.resolve();
   await Promise.all([pending, starting]);
   await Effect.runPromise(current.start(query));
-  expect(r.links.get(query.sessionID)?.phase).toBe("started");
+  expect(r.links.get("ses-alpha/demo-1")?.phase).toBe("started");
   expect(r.admitted.size).toBe(1);
   expect(r.counts()).toEqual({ claims: 1, submissions: 1 });
 });
@@ -259,7 +276,7 @@ test("a delayed operation from the old workspace cannot erase the moved session'
         Effect.gen(function* () {
           entered.resolve();
           yield* Effect.promise(() => release.promise);
-          return yield* r.reader.show();
+          return yield* r.reader.show(query.id);
         }),
     },
     r.writer,
@@ -280,7 +297,7 @@ test("a delayed operation from the old workspace cannot erase the moved session'
     "rejected",
     "fulfilled",
   ]);
-  expect(r.links.get(query.sessionID)).toMatchObject({
+  expect(r.links.get("ses-alpha/demo-1")).toMatchObject({
     directory: "/b",
     phase: "started",
   });
@@ -312,8 +329,89 @@ test("a failed final storage write retains prompt identity after admission", asy
   await expect(Effect.runPromise(work.start(query))).rejects.toMatchObject({
     code: "handoff_failed",
   });
-  expect(r.links.get(query.sessionID)?.phase).toBe("claimed");
+  expect(r.links.get("ses-alpha/demo-1")?.phase).toBe("claimed");
   await Effect.runPromise(work.start(query));
   expect(r.admitted.size).toBe(1);
   expect(r.counts().claims).toBe(1);
+});
+
+test("one session claims multiple beads and retries each prompt independently", async () => {
+  const r = rig();
+  const work = r.make();
+  const other = { ...query, id: "demo-2" };
+  await Promise.all([
+    Effect.runPromise(work.claim(query)),
+    Effect.runPromise(work.claim(other)),
+  ]);
+  expect(
+    (await Effect.runPromise(work.links(query.sessionID))).map(
+      (link) => link.id,
+    ),
+  ).toEqual(["demo-1", "demo-2"]);
+  r.losePromptResponse();
+  await expect(Effect.runPromise(work.start(query))).rejects.toMatchObject({
+    code: "handoff_failed",
+  });
+  await Effect.runPromise(work.start(other));
+  await Effect.runPromise(r.make().start(query));
+  await Effect.runPromise(r.make().start(other));
+  expect(r.counts()).toEqual({ claims: 2, submissions: 3 });
+  expect(r.admitted.size).toBe(2);
+  expect(new Set([...r.links.values()].map((link) => link.promptID)).size).toBe(
+    2,
+  );
+});
+
+test("failed pre-mutation cleanup preserves the intent and surfaces its failure", async () => {
+  const r = rig();
+  let validations = 0;
+  const work = createWork(
+    { directory: "/workspace/demo" },
+    {
+      ...r.host,
+      validate: () =>
+        Effect.suspend(() =>
+          ++validations === 2
+            ? Effect.fail(
+                new BeadsError("workspace_changed", "Moved before mutation"),
+              )
+            : Effect.void,
+        ),
+      remove: () =>
+        Effect.fail(new BeadsError("handoff_failed", "Intent cleanup failed")),
+    },
+    r.reader,
+    r.writer,
+  );
+  const exit = await Effect.runPromiseExit(work.start(query));
+  expect(Exit.isFailure(exit) && Cause.pretty(exit.cause)).toContain(
+    "Intent cleanup failed",
+  );
+  expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(false);
+  expect(r.links.size).toBe(1);
+  expect(r.counts()).toEqual({ claims: 0, submissions: 0 });
+});
+
+test("interrupted claim releases its session permit and waiter reconciles saved intent", async () => {
+  const r = rig();
+  const entered = deferred<void>();
+  const work = createWork({ directory: "/workspace/demo" }, r.host, r.reader, {
+    claim: (id, actor) =>
+      r.writer
+        .claim(id, actor)
+        .pipe(
+          Effect.andThen(Effect.sync(() => entered.resolve())),
+          Effect.andThen(Effect.never),
+        ),
+  });
+  const controller = new AbortController();
+  const pending = Effect.runPromiseExit(work.claim(query), {
+    signal: controller.signal,
+  });
+  await entered.promise;
+  const waiter = Effect.runPromise(r.make().start(query));
+  controller.abort();
+  expect((await pending)._tag).toBe("Failure");
+  expect((await waiter).link.phase).toBe("started");
+  expect(r.counts()).toEqual({ claims: 1, submissions: 1 });
 });

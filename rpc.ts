@@ -16,6 +16,11 @@ import {
 export const Beads = Rpc.define({
   id: "beads",
   methods: {
+    links: {
+      input: SessionQuery,
+      output: WorkLink.array(),
+      errors: { unavailable: Failure },
+    },
     linked: {
       input: SessionQuery,
       output: WorkLink.nullable(),

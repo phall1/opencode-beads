@@ -1,11 +1,11 @@
-import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { Context } from "@opencode/plugin/tui/context";
 import type { Issue } from "../beads/schema";
 import type { WorkLink, WorkResult } from "../work/schema";
 import { displayText, errorMessage } from "../text";
 
 export interface WorkActions {
-  linked(signal: AbortSignal): Promise<WorkLink | null>;
+  links(signal: AbortSignal): Promise<WorkLink[]>;
   start(id: string, signal: AbortSignal): Promise<WorkResult>;
 }
 
@@ -17,7 +17,12 @@ export function WorkControls(props: {
   refresh(): Promise<void>;
 }) {
   const lifetime = new AbortController();
-  const [link, setLink] = createSignal<WorkLink | null>(null);
+  const [links, setLinks] = createSignal<WorkLink[]>([]);
+  const link = createMemo(() =>
+    props.issue
+      ? links().find((link) => link.id === props.issue!.id)
+      : links().at(-1),
+  );
   const [busy, setBusy] = createSignal(false);
   const [failure, setFailure] = createSignal<string>();
   let generation = 0;
@@ -26,8 +31,8 @@ export function WorkControls(props: {
   async function sync() {
     const requested = ++generation;
     try {
-      const value = await props.work.linked(lifetime.signal);
-      if (!lifetime.signal.aborted && requested === generation) setLink(value);
+      const value = await props.work.links(lifetime.signal);
+      if (!lifetime.signal.aborted && requested === generation) setLinks(value);
     } catch (error) {
       if (!lifetime.signal.aborted && requested === generation)
         setFailure(errorMessage(error));
@@ -44,13 +49,17 @@ export function WorkControls(props: {
     try {
       const result = await props.work.start(issue.id, lifetime.signal);
       if (lifetime.signal.aborted) return;
-      setLink(result.link);
+      setLinks((links) => [
+        ...links.filter((link) => link.id !== result.link.id),
+        result.link,
+      ]);
       props.context.ui.toast.show({
         title: "Beads",
         message: `${issue.id} claimed; work prompt submitted`,
         variant: "success",
       });
       await props.refresh();
+      await sync();
     } catch (error) {
       if (lifetime.signal.aborted) return;
       setFailure(errorMessage(error));
@@ -75,6 +84,11 @@ export function WorkControls(props: {
 
   return (
     <box flexDirection="column" flexShrink={0}>
+      <Show when={links().length > 1}>
+        <text fg={props.context.theme.text.subdued}>
+          {links().length} linked beads in this workspace
+        </text>
+      </Show>
       <Show when={link()}>
         {(current) => (
           <text fg={props.context.theme.text.subdued}>

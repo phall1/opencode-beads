@@ -1,94 +1,78 @@
-# Tests that earn their keep
+# Testing
 
-The target is confidence in the user workflow, not a coverage percentage. Prefer
-an observable failure at a real seam over an assertion about a private helper.
-Do not add snapshots of whole host objects or mock-call counts that only repeat
-the implementation.
+Test observable behavior across real seams. Add regressions for concrete failure
+modes, not coverage targets or assertions that repeat private implementation.
 
-## Risk → evidence
+## Commands
 
-| Failure we care about                                             | Evidence                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Broken package despite passing source tests                       | `package-smoke.ts` installs a tarball into a clean consumer, loads server/TUI/RPC via V2 `Host`, then configures the installed plugin in the real Effect SDK host and executes RPC                                           |
-| Wrong repository's work shown as this repository                  | `location.test.tsx` mounts the actual TUI plugin slot, starts without cached session data, moves the same session A→B, checks abort and late-response rejection; process + real-Beads tests inject a conflicting `BEADS_DIR` |
-| Beads scheduling semantics accidentally reimplemented             | `real-beads-smoke.ts` creates ready, blocked, and in-progress work and queries the production reader                                                                                                                         |
-| Browsing changes the last-touched bead                            | Real-Beads smoke compares the marker before and after full-content inspection                                                                                                                                                |
-| Backend failure looks like an empty queue                         | Process tests exercise exit errors and malformed JSON; native rendering tests assert actionable error and recovery states                                                                                                    |
-| A subprocess hangs, grows without bound, or outlives interruption | Real subprocess timeout/output-limit tests; an Effect-interruption test waits for a child-start handshake and verifies the PID exits                                                                                         |
-| Old request replaces newer results or selection jumps on refresh  | Model tests defer completions, reorder results, and preserve stable selection IDs                                                                                                                                            |
-| Terminal workflow is visually or interactively broken             | Native OpenTUI tests send arrow/Enter/search/attach/refresh input, inspect rendered text at 48 columns, and verify blur and cleanup behavior                                                                                 |
-| Typed RPC error disappears across serialization                   | Real Effect SDK host checks the declared error's type and code                                                                                                                                                               |
+Run from the repository root:
 
-## Test doubles are explicit
+```sh
+bun install --frozen-lockfile
+bun run check
+bun run format:check
+bun run scripts/package-smoke.ts
+bun run scripts/real-beads-smoke.ts
+bun run test:tui
+```
 
-Claim/start regressions cover concurrent clicks, overlapping old/new plugin
-executors, accepted-but-lost prompt responses, module recreation, uncertain
-writes, and pre-write location failures. Lease tests distinguish durable links
-from activity and stop a pending renewal when execution ends during its read.
-Real-Beads smoke races distinct actors, retries the winner, rejects a foreign
-claim/heartbeat, and verifies closed-state refusal. Native rendering exercises
-explicit Start and its resulting link/Ready refresh.
+`check` runs typechecking, ESLint (complexity ≤10, nesting ≤3), and Bun tests.
+Package smoke installs a tarball into a clean consumer, loads the server/TUI/RPC
+entrypoints, and executes RPC in the real Effect SDK host. Both run in CI.
+Real-Beads smoke requires `bd`; Drive also requires compatible `opencode2` on PATH.
+The default CI lane does not install those external executables.
 
-- Process tests substitute a real executable for `bd`; it sees actual argv, cwd,
-  environment, cancellation, and OS process limits. A separate real-`bd` smoke
-  establishes that the CLI contract matches the tested version.
-- Native rendering uses the real OpenTUI renderer and input parser. A small
-  driver implements the public keymap registration contract, including enabled
-  predicates and component cleanup. It is **not** a full OpenCode TUI end-to-end
-  test; host-specific panel sizing and keymap arbitration still need in-app
-  dogfooding with other plugins.
-- The model reader double controls completion order; it does not pretend to
-  prove process behavior or Beads semantics.
-- The Effect SDK host uses a fixture `bd` executable so it can verify activation,
-  RPC validation, errors, location routing, claim/start and stored linkage without
-  a mutable real database. It does not yet drive model-invoked tool executors or prove cancellation across
-  the complete remote transport. Reader interruption tests establish the local
-  Effect-to-process contract specifically.
+Automated fixtures use disposable repositories and isolated state, never an
+existing user Beads database. Real-Beads smoke isolates HOME, disables metrics,
+and cleans up; use `KEEP_BEADS_FIXTURE=1` to retain it for debugging.
 
-## Running and isolation
+## Evidence
 
-`bun run check` is the fast gate. `bun run scripts/package-smoke.ts` is the
-packaging/integration gate and runs in CI. `bun run scripts/real-beads-smoke.ts`
-creates disposable repositories and a disposable HOME, disables CLI metrics,
-and removes them afterwards. Set `KEEP_BEADS_FIXTURE=1` only when intentionally
-retaining those generated workspaces for investigation.
+- **Processes:** real executable fixtures verify argv, cwd, environment, decoding,
+  error classification, timeout, output bounds, and child exit on interruption.
+- **Locations:** the mounted TUI waits for session data, moves A→B, aborts old work,
+  and rejects late responses. Process/real-Beads checks inject a conflicting
+  `BEADS_DIR`.
+- **Beads:** disposable real databases verify ready/blocked/in-progress work,
+  read-only lookup, competing actors, claim retry, foreign ownership/heartbeat
+  rejection, and closed-state refusal.
+- **Handoffs:** tests cover concurrent clicks, old/new plugin executors, lost
+  prompt responses, module recreation, uncertain writes, and location changes.
+  Lease tests distinguish saved links from activity and stop renewal when
+  execution ends during a read.
+- **UI:** model tests control completion order and selection. Native OpenTUI tests
+  exercise keyboard input, search, context, Start, refresh, narrow layouts, and
+  cleanup. The keymap driver is a test double; host arbitration with other plugins
+  still needs in-app acceptance.
+- **Host:** the real Effect SDK host uses a fixture `bd` for registration, RPC
+  validation/errors, routing, and durable handoff. It does not drive model-invoked
+  tool executors or prove cancellation across the full remote transport.
 
-No automated check reads or initializes an existing user Beads database. Add
-regressions for concrete bugs; broaden testing when a change introduces a new
-failure mode, not merely to raise the test count.
+Multi-bead regressions cover independent prompt IDs/retries, canceled lock holders,
+paginated storage and legacy reads, and location isolation. Storage-defect tests
+cross the SDK adapter. Virtual-clock tests exercise lost subscriptions, fresh
+activity after reconnect, independent heartbeats, and cancellation on unload.
+Package smoke checks both the compatible `linked` and collection `links` RPCs.
 
-Manual live dogfooding in this repository exercised the model-invoked
-`beads_claim` tool on `ocb-hd7`, verifying its session actor and durable link.
-This is distinct from the isolated automated tests above.
+## Compiled TUI acceptance
 
-The live beta-19378 CLI was also opened in a real PTY against this session and
-repository. It reproduced an indefinitely loading list while the linked-bead
-footer succeeded. Moving the reactive state module from `.ts` to `.tsx` restored
-the list through the host's actual runtime transform; the same PTY then displayed
-the real Ready records. This acceptance regression for `ocb-0sp` is
-now covered by the repeatable Drive scenario below.
+Run `bun run test:tui` after UI changes and inspect its screenshots.
+`opencode-drive@2.1.0` runs the installed CLI with a simulated LLM and disposable
+Beads database. `scripts/tui-drive.ts` exercises `/beads`, loaded results, detail,
+two independent Claim & start actions in one session, prompt responses, Ready
+refresh, In progress, and a 60-column
+fullscreen view. Drive typechecks the scenario before execution.
 
-Compatibility evidence: SDK/plugin beta-19365, CLI beta-19378, Effect
-4.0.0-rc.112, OpenTUI 0.5.11, Solid 1.9.12, Bun 1.3.14, and Beads
-HEAD-7505e17 (Homebrew, embedded Dolt) on macOS. This Beads build's
-`show --readonly` writes `last-touched`, so full lookup uses `list --all --id`.
-Its proxied-server mode rejects strict readonly; the plugin surfaces that
-failure. Other Beads versions/backends have not been verified.
+Set `BEADS_PLUGIN_DIRECTORY` for another checkout and `OPENCODE_DRIVE_MEDIA_DIR`
+for screenshots. The compiled CLI's `.ts`/`.tsx` reactive-store loading regression
+passed source-only tests; Drive is a separate required gate.
 
-## Actual TUI regression with OpenCode Drive
+## Tested compatibility
 
-Run `bun run test:tui` after UI changes. `opencode-drive@2.1.0` launches the
-installed `opencode2` in isolation with a simulated LLM and a real disposable
-Beads database. `scripts/tui-drive.ts` exercises `/beads`, waits for a loaded
-record, inspects acceptance criteria, claims and starts work, waits for the
-prompt response and refreshed Ready state, switches to In progress, and captures
-a 60-column fullscreen view. Screenshots are emitted at each checkpoint. The
-Drive `run` command type-checks the Effect program before executing it.
+SDK/plugin beta-19365, CLI beta-19378, Effect 4.0.0-rc.112, OpenTUI 0.5.11,
+Solid 1.9.12, Bun 1.3.14, Beads HEAD-7505e17 (Homebrew, embedded Dolt), macOS.
+Recheck installed-package and native rendering behavior after dependency upgrades.
 
-Requires compatible `opencode2` and `bd` on PATH. Run from the repository root;
-`BEADS_PLUGIN_DIRECTORY` optionally selects another plugin checkout for A/B
-testing. Set `OPENCODE_DRIVE_MEDIA_DIR` to choose the screenshot directory.
-The same script failed on `f3fb6fb` at the initial loaded-record wait and passed
-on the `.tsx` fix using CLI beta-19378. Source-only tests had passed both versions;
-this is why the real compiled TUI is a separate required gate. CI's default lane
-does not install the external OpenCode or Beads executables.
+This Beads build's `show --readonly` writes `last-touched`; full lookup therefore
+uses `list --all --id`. Its proxied-server mode rejects strict readonly and the
+plugin surfaces that failure. Other Beads versions/backends are unverified.

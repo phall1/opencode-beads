@@ -8,6 +8,7 @@ import type { Reader } from "../src/workbench/model";
 import { deferred, issue, result } from "./fixtures";
 import type { ListResult } from "../src/beads/schema";
 import type { WorkActions } from "../src/workbench/work-actions";
+import type { WorkLink } from "../src/work/schema";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -159,7 +160,16 @@ test("blurred panel shortcuts do not run; unmount releases its keymap layers", a
 
 test("Start is explicit, then displays the durable link and refreshes Ready", async () => {
   let started = false;
-  const initialLink = deferred<null>();
+  const initialLink = deferred<[]>();
+  let requests = 0;
+  const startedLink = {
+    id: "demo-1",
+    sessionID: "ses-alpha",
+    actor: "opencode:ses-alpha",
+    phase: "started" as const,
+    directory: "/workspace/demo",
+    workspaceID: null,
+  };
   const screen = await render(
     {
       list: async () => result(started ? [] : [issue()]),
@@ -167,7 +177,8 @@ test("Start is explicit, then displays the durable link and refreshes Ready", as
     },
     80,
     {
-      linked: () => initialLink.promise,
+      links: () =>
+        ++requests === 1 ? initialLink.promise : Promise.resolve([startedLink]),
       start: async (id) => {
         started = true;
         return {
@@ -190,8 +201,50 @@ test("Start is explicit, then displays the durable link and refreshes Ready", as
   await screen.waitForFrame((frame) => frame.includes("Claim & start here"));
   expect(started).toBe(false);
   await screen.key("s");
-  initialLink.resolve(null);
+  initialLink.resolve([]);
   await screen.renderer.idle();
   expect(screen.captureCharFrame()).toContain("Linked: demo-1 · started");
   expect(screen.captureCharFrame()).toContain("Nothing ready");
+});
+
+test("Start refreshes existing links even when the initial collection arrives late", async () => {
+  const initial = deferred<WorkLink[]>();
+  const first: WorkLink = {
+    id: "demo-1",
+    sessionID: "ses-alpha",
+    actor: "opencode:ses-alpha",
+    phase: "started",
+    directory: "/workspace/demo",
+    workspaceID: null,
+  };
+  const second = { ...first, id: "demo-2" };
+  let started = false;
+  let requests = 0;
+  const screen = await render(
+    {
+      list: async () =>
+        result(started ? [issue()] : [issue("demo-2"), issue()]),
+      show: async (id) => issue(id),
+    },
+    80,
+    {
+      links: () =>
+        ++requests === 1 ? initial.promise : Promise.resolve([first, second]),
+      start: async () => {
+        started = true;
+        return { issue: issue("demo-2"), link: second };
+      },
+    },
+  );
+  await screen.waitForFrame((frame) => frame.includes("demo-2"));
+  screen.mockInput.pressEnter();
+  await screen.waitForFrame((frame) => frame.includes("Claim & start here"));
+  await screen.key("s");
+  initial.resolve([{ ...first, phase: "claimed" }]);
+  await screen.renderer.idle();
+  expect(screen.captureCharFrame()).toContain("2 linked beads");
+  screen.mockInput.pressEnter();
+  await screen.waitForFrame((frame) =>
+    frame.includes("Linked: demo-1 · started"),
+  );
 });

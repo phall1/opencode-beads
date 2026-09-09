@@ -99,8 +99,30 @@ export default OpenCodeDriver.use(
       yield* ui.waitFor("Nothing ready");
       yield* ui.waitFor("Claimed work received.");
       yield* Effect.log(yield* ui.screenshot("beads-started"));
+      yield* bd(artifacts, [
+        "create",
+        "Drive second independent bead",
+        "--id",
+        "drv-second",
+        "--description",
+        "Claim a second bead in the same session",
+        "--acceptance",
+        "Keep independent durable links and prompts",
+      ]);
+      yield* ui.press("r");
+      yield* ui.waitFor("drv-second");
+      yield* ui.enter();
+      yield* ui.waitFor("Keep independent durable links");
+      yield* llm.queue(Llm.text("Second claimed work received."));
+      yield* ui.press("s");
+      yield* ui.waitFor("2 linked beads in this workspace");
+      yield* ui.waitFor("Linked: drv-second");
+      yield* ui.waitFor("Nothing ready");
+      yield* ui.waitFor("Second claimed work received.");
+      yield* Effect.log(yield* ui.screenshot("beads-multiple-started"));
       yield* ui.press("2");
       yield* ui.waitFor("in_progress");
+      yield* ui.waitFor("2 shown");
       yield* ui.resize({ cols: 60, rows: 30 });
       yield* ui.waitFor("in_progress");
       yield* Effect.log(yield* ui.screenshot("beads-narrow"));

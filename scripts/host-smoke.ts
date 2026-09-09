@@ -61,6 +61,23 @@ async function hostCheck(directory: string, pluginDirectory: string) {
             yield* rpc.linked({ sessionID: session.id }, { location }),
             started.link,
           );
+          const second = yield* rpc.start(
+            { ...input, id: "demo-2" },
+            { location },
+          );
+          assert.equal(second.link.id, "demo-2");
+          assert.deepEqual(yield* rpc.start(input, { location }), started);
+          const links = yield* rpc.links(
+            { sessionID: session.id },
+            { location },
+          );
+          assert.deepEqual(links.map((link) => link.id).sort(), [
+            "demo-1",
+            "demo-2",
+          ]);
+          assert.ok(
+            links.every((link) => !("prompt" in link) && !("promptID" in link)),
+          );
           yield* host.session.interrupt({
             sessionID: session.id,
             continue: false,
@@ -108,13 +125,18 @@ async function isolatedCheck(pluginDirectory: string) {
       executable,
       `#!${process.execPath}
 if(process.cwd().endsWith('/broken')) { console.error('backend unavailable'); process.exit(1); }
-const file = Bun.file('.claim.json');
-let issue = await file.exists() ? await file.json() : {id:'demo-1',title:process.cwd().split('/').pop(),priority:1,status:'open'};
+const args = process.argv.slice(2);
+const id = args.includes('--claim') ? args[1] : args[args.indexOf('--id') + 1];
+const records = ['demo-1', 'demo-2'];
+const make = (id) => ({id,title:process.cwd().split('/').pop(),priority:1,status:'open'});
+const read = async (id) => await Bun.file('.claim-' + id + '.json').exists() ? await Bun.file('.claim-' + id + '.json').json() : make(id);
+let issue = await read(records.includes(id) ? id : 'demo-1');
 if(process.argv.includes('--claim')) {
   issue = {...issue, status:'in_progress', assignee:process.argv[process.argv.indexOf('--actor')+1]};
-  await Bun.write('.claim.json', JSON.stringify(issue));
+  await Bun.write('.claim-' + id + '.json', JSON.stringify(issue));
 }
-console.log(JSON.stringify({schema_version:1,data:[issue]}));`,
+const data = args.includes('--id') || args.includes('--claim') ? [issue] : await Promise.all(records.map(read));
+console.log(JSON.stringify({schema_version:1,data}));`,
     );
     await chmod(executable, 0o755);
     const env = Object.fromEntries(

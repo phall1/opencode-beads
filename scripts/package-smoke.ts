@@ -55,6 +55,7 @@ try {
   assert.equal(typeof tui.default.setup, "function");
   assert.deepEqual(Object.keys(rpc.Beads.methods).sort(), [
     "linked",
+    "links",
     "list",
     "show",
     "start",

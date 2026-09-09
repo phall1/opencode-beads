@@ -9,9 +9,13 @@ import { withSessionLock } from "./lock";
 
 export interface WorkHost {
   validate(sessionID: string): Effect.Effect<void, BeadsError>;
-  load(sessionID: string): Effect.Effect<WorkLink | null, BeadsError>;
+  load(
+    sessionID: string,
+    id: string,
+  ): Effect.Effect<WorkLink | null, BeadsError>;
+  list(sessionID: string): Effect.Effect<WorkLink[], BeadsError>;
   save(link: WorkLink): Effect.Effect<void, BeadsError>;
-  remove(sessionID: string): Effect.Effect<void, BeadsError>;
+  remove(sessionID: string, id: string): Effect.Effect<void, BeadsError>;
   prompt(link: WorkLink): Effect.Effect<void, BeadsError>;
 }
 
@@ -34,108 +38,98 @@ export function createWork(
     );
   }
 
-  const reconcile = (link: WorkLink) =>
-    Effect.gen(function* () {
-      const issue = yield* reader.show(link.id);
-      if (link.phase === "claim_pending" && issue.assignee !== link.actor)
-        return yield* Effect.fail(
-          new BeadsError(
-            "outcome_unknown",
-            `The earlier claim for ${link.id} was not confirmed. Inspect its ownership with bd before retrying; no new claim or prompt was issued.`,
-          ),
-        );
-      yield* verifyOwner(issue, link);
-      const confirmed: WorkLink = {
-        ...link,
-        phase: link.phase === "started" ? "started" : "claimed",
-      };
-      yield* host.save(confirmed);
-      return { issue, link: confirmed };
-    });
-
-  const prepare = (input: StartQuery) =>
-    Effect.gen(function* () {
-      yield* host.validate(input.sessionID);
-      const previous = yield* host.load(input.sessionID);
-      if (previous && previous.id !== input.id)
-        return yield* Effect.fail(
-          new BeadsError(
-            "session_linked",
-            `This session is already linked to ${previous.id}. Use another session for ${input.id}.`,
-          ),
-        );
-      if (previous) return yield* reconcile(previous);
-      const issue = yield* reader.show(input.id);
-      if (!(yield* reader.ready(input.id)))
-        return yield* Effect.fail(
-          new BeadsError(
-            "not_claimable",
-            `${input.id} is not currently Ready in Beads. Refresh and inspect its blockers or status.`,
-          ),
-        );
-      const link: WorkLink = {
-        id: input.id,
-        sessionID: input.sessionID,
-        directory,
-        workspaceID: location.workspaceID ?? null,
-        actor: `opencode:${input.sessionID}`,
-        promptID: SessionMessage.ID.create(),
-        phase: "claim_pending",
-        prompt: workPrompt(issue, directory),
-      };
-      // Persist intent BEFORE mutation; an interrupted write is reconciled, never replayed blindly.
-      let mutationAttempted = false;
-      yield* Effect.gen(function* () {
-        yield* host.save(link);
-        yield* host.validate(input.sessionID);
-        mutationAttempted = true;
-        yield* claims.claim(link.id, link.actor).pipe(
-          Effect.catch((error) => {
-            if (
-              error.code === "ownership_conflict" ||
-              error.code === "not_claimable"
-            )
-              return host
-                .remove(input.sessionID)
-                .pipe(Effect.andThen(Effect.fail(error)));
-            return Effect.fail(
-              new BeadsError(
-                "outcome_unknown",
-                `Claim outcome for ${link.id} is uncertain. Press Start again to reconcile ownership. ${error.message}`,
-              ),
-            );
-          }),
-        );
-      }).pipe(
-        Effect.ensuring(
-          Effect.suspend(() =>
-            mutationAttempted
-              ? Effect.void
-              : host.remove(input.sessionID).pipe(Effect.orDie),
-          ),
+  const reconcile = Effect.fn("Work.reconcile")(function* (link: WorkLink) {
+    const issue = yield* reader.show(link.id);
+    if (link.phase === "claim_pending" && issue.assignee !== link.actor)
+      return yield* Effect.fail(
+        new BeadsError(
+          "outcome_unknown",
+          `The earlier claim for ${link.id} was not confirmed. Inspect its ownership with bd before retrying; no new claim or prompt was issued.`,
         ),
       );
-      return yield* reconcile(link);
-    });
+    yield* verifyOwner(issue, link);
+    const confirmed: WorkLink = {
+      ...link,
+      phase: link.phase === "started" ? "started" : "claimed",
+    };
+    yield* host.save(confirmed);
+    return { issue, link: confirmed };
+  });
 
+  const prepare = Effect.fn("Work.prepare")(function* (input: StartQuery) {
+    yield* host.validate(input.sessionID);
+    const previous = yield* host.load(input.sessionID, input.id);
+    if (previous) return yield* reconcile(previous);
+    const issue = yield* reader.show(input.id);
+    if (!(yield* reader.ready(input.id)))
+      return yield* Effect.fail(
+        new BeadsError(
+          "not_claimable",
+          `${input.id} is not currently Ready in Beads. Refresh and inspect its blockers or status.`,
+        ),
+      );
+    const link: WorkLink = {
+      id: input.id,
+      sessionID: input.sessionID,
+      directory,
+      workspaceID: location.workspaceID ?? null,
+      actor: `opencode:${input.sessionID}`,
+      promptID: SessionMessage.ID.create(),
+      phase: "claim_pending",
+      prompt: workPrompt(issue, directory),
+    };
+    // Persist intent BEFORE mutation; an interrupted write is reconciled, never replayed blindly.
+    let mutationAttempted = false;
+    yield* Effect.gen(function* () {
+      yield* host.save(link);
+      yield* host.validate(input.sessionID);
+      mutationAttempted = true;
+      yield* claims.claim(link.id, link.actor).pipe(
+        Effect.catch((error) => {
+          if (
+            error.code === "ownership_conflict" ||
+            error.code === "not_claimable"
+          )
+            return host
+              .remove(input.sessionID, input.id)
+              .pipe(Effect.andThen(Effect.fail(error)));
+          return Effect.fail(
+            new BeadsError(
+              "outcome_unknown",
+              `Claim outcome for ${link.id} is uncertain. Press Start again to reconcile ownership. ${error.message}`,
+            ),
+          );
+        }),
+      );
+    }).pipe(
+      Effect.onExit(() =>
+        mutationAttempted
+          ? Effect.void
+          : host.remove(input.sessionID, input.id),
+      ),
+    );
+    return yield* reconcile(link);
+  });
+
+  const links = (sessionID: string) =>
+    host.validate(sessionID).pipe(Effect.andThen(host.list(sessionID)));
+  const start = Effect.fn("Work.start")(function* (input: StartQuery) {
+    const result = yield* prepare(input);
+    if (result.link.phase === "started") return result;
+    yield* host.validate(input.sessionID);
+    yield* host.prompt(result.link);
+    const link: WorkLink = { ...result.link, phase: "started" };
+    yield* host.save(link);
+    return { issue: result.issue, link };
+  });
   return {
+    links,
     linked: (sessionID: string) =>
-      host.validate(sessionID).pipe(Effect.andThen(host.load(sessionID))),
+      links(sessionID).pipe(Effect.map((links) => links[0] ?? null)),
     claim: (input: StartQuery) =>
       withSessionLock(input.sessionID, prepare(input)),
     start: (input: StartQuery) =>
-      withSessionLock(
-        input.sessionID,
-        Effect.gen(function* () {
-          const result = yield* prepare(input);
-          if (result.link.phase === "started") return result;
-          yield* host.validate(input.sessionID);
-          yield* host.prompt(result.link);
-          const link: WorkLink = { ...result.link, phase: "started" };
-          yield* host.save(link);
-          return { issue: result.issue, link };
-        }),
-      ),
+      withSessionLock(input.sessionID, start(input)),
   };
 }
 

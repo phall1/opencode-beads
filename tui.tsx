@@ -78,8 +78,8 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
             close={props.panel.close}
             fullscreen={props.panel.toggleFullscreen}
             work={{
-              linked: (signal) =>
-                rpc.linked(
+              links: (signal) =>
+                rpc.links(
                   { sessionID },
                   { location: connected.location, signal },
                 ),

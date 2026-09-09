@@ -33,7 +33,7 @@ Run `/beads` to open the workbench.
 | `f`                  | Toggle fullscreen                              |
 | `Esc`                | Go back or close                               |
 
-Browsing is read-only. Adding context and claiming require a session. Each session can link to one issue; search covers up to 100 loaded results.
+Browsing is read-only. A session can claim multiple issues; each keeps its own retry-safe work prompt. Search covers up to 100 loaded results.
 
 Agents get `beads_list`, `beads_show`, and `beads_claim` tools.
 

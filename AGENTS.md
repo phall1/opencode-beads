@@ -1,43 +1,33 @@
 # Working on opencode-beads
 
-- Target OpenCode V2 only. Read https://opencode.ai/v2/docs/build/plugins and the
-  CLI/RPC references before changing host integrations. Verify against installed
-  SDK types; never invent declarations to conceal a mismatch.
-- Server plugins use `@opencode/plugin/effect`. Keep Effects lazy and let the
-  host own execution, interruption, and Scope. Never start a nested Effect runtime
-  inside a server handler. The TUI follows the host's Solid/Promise interface.
-- Read PRODUCT.md and TECH.md. Keep actual behavior and compatibility evidence
-  in sync with these documents.
-- One package. Keep Beads execution on the server, the shared RPC contract free
-  of server imports, and the TUI free of subprocess/database access.
-- Beads is authoritative for readiness and ownership. Never infer readiness from
-  list status. Never initialize or mutate a user's workspace while browsing.
-- Use `bun install --frozen-lockfile`, `bun run check`,
-  `bun run format:check`, and `bun run scripts/package-smoke.ts`.
-- Functions must stay at cyclomatic complexity ≤10 and nesting ≤3; prefer named
-  operations and guard clauses. Tests should exercise behavior across real seams.
-- Pin the beta OpenCode SDK and coordinate OpenTUI/Solid versions. Recheck the
-  installed package and native rendering after host dependency upgrades.
-- Do not publish packages or create upstream PRs as part of routine development.
-- Use `bun run test:tui` (OpenCode Drive) for actual TUI acceptance after UI
-  changes. Inspect its screenshots; source-render tests alone do not exercise
-  the compiled host's runtime transforms. Keep all Drive fixtures isolated.
+- Read PRODUCT.md and TECH.md; keep behavior and compatibility evidence current.
+- Target OpenCode V2. Read https://opencode.ai/v2/docs/build/plugins and its
+  CLI/RPC references before host changes. Verify installed SDK types; never invent
+  declarations. Pin the beta SDK and coordinate OpenTUI/Solid upgrades.
+- Use `@opencode/plugin/effect` on the server. Keep Effects lazy; the host owns
+  execution, interruption, and Scope. No nested runtimes in handlers. The TUI
+  follows the host's Solid/Promise interface.
+- One package: Beads runs on the server, shared RPC has no server imports, and
+  the TUI has no subprocess/database access.
+- Beads owns readiness and ownership. Never infer readiness from status or
+  initialize, mutate, or synchronize a workspace while browsing.
+- Run `bun install --frozen-lockfile`, `bun run check`, `bun run format:check`,
+  and `bun run scripts/package-smoke.ts`. After UI changes, run `bun run test:tui`
+  and inspect Drive screenshots using isolated fixtures. Recheck installed-package
+  and native rendering behavior after host dependency upgrades.
+- Keep cyclomatic complexity ≤10 and nesting ≤3. Prefer named operations, guard
+  clauses, and tests of behavior across real seams.
+- Do not publish packages or create upstream PRs during routine development.
 
-## Dogfood the workflow
+## Beads and live testing
 
-- This repository uses Beads (prefix `ocb`) to track real work. Browse with the
-  plugin's `beads_list` / `beads_show` tools and claim the active bead with
-  `beads_claim`. Use explicit `bd` commands for creation/dependencies/completion
-  until those operations are implemented in the plugin; use `--sandbox` to keep
-  synchronization deliberate and the same `opencode:<sessionID>` actor for writes.
-- Keep discoveries and follow-up work in Beads; close completed work with concrete
-  verification evidence. Beads owns readiness, including dependency ordering.
-- `opencode.jsonc` loads this checkout (`./dev-plugin`) for live testing. The small
-  entrypoint directory keeps Beads database writes outside the host's recursive
-  plugin watcher; imported source files are watched individually. Avoid loading a
-  second installed copy with the same plugin ID. The global dogfood installation
-  should point to this same checkout.
-- Beads' Dolt database and runtime files are local/ignored; tracked `.beads`
-  configuration does not contain issue data. A fresh clone needs an explicit
-  `bd init` or configured Dolt remote pull before browsing; never initialize it
-  as a side effect of the plugin.
+- Track work in Beads (`ocb`). Browse with `beads_list`/`beads_show`, claim with
+  `beads_claim`. Use explicit `bd --sandbox` commands for creation, dependencies,
+  and completion, with `opencode:<sessionID>` as the write actor. Record follow-ups
+  and close completed work with verification evidence; Beads owns scheduling.
+- `opencode.jsonc` loads `./dev-plugin`. Point global dogfooding at this checkout;
+  avoid a second copy with the same plugin ID. The narrow entrypoint keeps database
+  writes outside recursive plugin watching; imported sources are watched separately.
+- Dolt/runtime files are local and ignored; tracked `.beads` config has no issue
+  data. Fresh clones need explicit `bd init` or a configured Dolt remote pull,
+  never automatic initialization by the plugin.

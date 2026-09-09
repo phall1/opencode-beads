@@ -21,6 +21,14 @@ export default Plugin.define({
       const leases = yield* watchLeases(ctx, host, reader, claims);
       yield* ctx.rpc
         .register(Beads, {
+          links: (input, call) =>
+            work.links(input.sessionID).pipe(
+              Effect.mapError((error) =>
+                call.error("unavailable", error.message, {
+                  code: error.code,
+                }),
+              ),
+            ),
           linked: (input, call) =>
             work.linked(input.sessionID).pipe(
               Effect.mapError((error) =>
