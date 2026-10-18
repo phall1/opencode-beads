@@ -39,6 +39,7 @@ function bd(artifacts: string, args: string[]) {
 
 export default OpenCodeDriver.use(
   {
+    opencode: { command: ["opencode"] },
     project: {
       git: true,
       files: { "README.md": "# Isolated Beads UI fixture\n" },

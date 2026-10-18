@@ -179,13 +179,13 @@ export function WorkControls(props: {
   return (
     <box flexDirection="column" flexShrink={0} marginTop={1}>
       <Show when={links().length > 1}>
-        <text fg={props.context.theme.text.subdued}>
+        <text fg={props.context.theme.text.muted}>
           {links().length} linked beads in this workspace
         </text>
       </Show>
       <Show when={link()}>
         {(current) => (
-          <text fg={props.context.theme.text.subdued}>
+          <text fg={props.context.theme.text.muted}>
             Linked: {displayText(current().id)} · {current().phase}
           </text>
         )}
@@ -230,7 +230,7 @@ export function WorkControls(props: {
         </box>
       </Show>
       <Show when={failure()}>
-        <text fg={props.context.theme.text.feedback.error.default}>
+        <text fg={props.context.theme.text.feedback.error.base}>
           {failure()}
         </text>
       </Show>

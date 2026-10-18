@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createSignal, onCleanup } from "solid-js";
 import { testRender } from "@opentui/solid";
-import { DEFAULT_THEME, resolveThemeDocument } from "@opencode/theme/tui";
+import { theme } from "./theme";
 import type {
   Context,
   PanelInput,
@@ -29,7 +29,7 @@ test("session cache miss never queries a fallback; moving the same session abort
     toggleFullscreen() {},
   };
   const context = {
-    theme: resolveThemeDocument(DEFAULT_THEME),
+    theme,
     location: { directory: "/wrong-default" },
     data: { session: { get: session, sync: async () => {} } },
     keymap: { layer: () => {}, shortcuts: () => [] },

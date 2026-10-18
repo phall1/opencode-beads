@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { testRender, useKeyboard } from "@opentui/solid";
 import { createSignal, onCleanup } from "solid-js";
-import { DEFAULT_THEME, resolveThemeDocument } from "@opencode/theme/tui";
+import { theme } from "./theme";
 import type { Context, KeymapLayer } from "@opencode/plugin/tui/context";
 import { WorkbenchView } from "../src/workbench/view";
 import type { Reader } from "../src/workbench/model";
@@ -31,7 +31,7 @@ async function render(
   let host: BoxRenderable;
   // Only the host methods this view consumes. The source is checked against the full SDK.
   const context = {
-    theme: resolveThemeDocument(DEFAULT_THEME),
+    theme,
     keymap: {
       shortcuts: () => [],
       layer: (factory: () => KeymapLayer) => {

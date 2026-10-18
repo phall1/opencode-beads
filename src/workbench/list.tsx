@@ -64,13 +64,13 @@ export function IssueList(props: {
   return (
     <box flexGrow={1} flexDirection="column" minHeight={0}>
       <Show when={model.state.phase === "loading"}>
-        <text fg={theme.text.subdued}>Loading beads…</text>
+        <text fg={theme.text.muted}>Loading beads…</text>
       </Show>
       <Show when={model.state.error}>
-        <text fg={theme.text.feedback.error.default}>{model.state.error}</text>
+        <text fg={theme.text.feedback.error.base}>{model.state.error}</text>
       </Show>
       <Show when={model.state.phase === "ready"}>
-        <text fg={theme.text.subdued} flexShrink={0} marginBottom={1}>
+        <text fg={theme.text.muted} flexShrink={0} marginBottom={1}>
           {model.visible().length} shown · {model.state.result?.issues.length}{" "}
           loaded
           {model.state.result?.mayHaveMore
@@ -79,7 +79,7 @@ export function IssueList(props: {
         </text>
         <Show
           when={model.visible().length > 0}
-          fallback={<text fg={theme.text.subdued}>{emptyMessage(model)}</text>}
+          fallback={<text fg={theme.text.muted}>{emptyMessage(model)}</text>}
         >
           <scrollbox
             ref={scroll}
@@ -112,20 +112,20 @@ export function IssueList(props: {
                     paddingX={1}
                     backgroundColor={
                       model.state.selectedID === issue.id
-                        ? theme.background.surface.offset
+                        ? theme.background.raised.base
                         : hovered()
-                          ? theme.background.surface.overlay
-                          : theme.background.default
+                          ? theme.background.raised.high
+                          : theme.background.base
                     }
                     onMouseOver={() => setHovered(true)}
                     onMouseOut={() => setHovered(false)}
                     onMouseDown={inspect}
                   >
-                    <text height={1} wrapMode="none" fg={theme.text.default}>
+                    <text height={1} wrapMode="none" fg={theme.text.base}>
                       {model.state.selectedID === issue.id ? "› " : "  "}
                       <b>{displayText(issue.title)}</b>
                     </text>
-                    <text height={1} wrapMode="none" fg={theme.text.subdued}>
+                    <text height={1} wrapMode="none" fg={theme.text.muted}>
                       {`  ${metadata(issue)}`}
                     </text>
                   </box>

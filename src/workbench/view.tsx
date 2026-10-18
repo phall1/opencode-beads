@@ -175,8 +175,8 @@ export function WorkbenchView(props: WorkbenchProps) {
       minHeight={0}
       paddingX={1}
       border
-      borderColor={theme.border.default}
-      backgroundColor={theme.background.default}
+      borderColor={theme.border.base}
+      backgroundColor={theme.background.base}
     >
       <WorkbenchHeader
         context={props.context}
@@ -218,7 +218,7 @@ export function WorkbenchView(props: WorkbenchProps) {
             when={searching()}
             fallback={
               <text
-                fg={theme.text.subdued}
+                fg={theme.text.muted}
                 height={1}
                 flexGrow={1}
                 wrapMode="none"
@@ -239,8 +239,8 @@ export function WorkbenchView(props: WorkbenchProps) {
               flexGrow={1}
               onInput={model.search}
               onSubmit={() => setSearching(false)}
-              textColor={theme.text.default}
-              backgroundColor={theme.background.surface.offset}
+              textColor={theme.text.base}
+              backgroundColor={theme.background.raised.base}
             />
           </Show>
           <Show when={model.state.search}>
@@ -366,15 +366,11 @@ function IssueHeading(props: { model: Workbench; context: Context }) {
     <Show when={props.model.state.detail}>
       {(issue) => (
         <box flexDirection="column" flexShrink={0} marginTop={1}>
-          <text
-            fg={props.context.theme.text.default}
-            maxHeight={2}
-            flexShrink={0}
-          >
+          <text fg={props.context.theme.text.base} maxHeight={2} flexShrink={0}>
             <b>{displayText(issue().title)}</b>
           </text>
           <text
-            fg={props.context.theme.text.subdued}
+            fg={props.context.theme.text.muted}
             height={1}
             wrapMode="none"
             truncate
@@ -407,7 +403,7 @@ function IssueDetail(props: {
       scrollX={false}
     >
       <Show when={props.model.state.detailError}>
-        <text fg={theme.text.feedback.error.default}>
+        <text fg={theme.text.feedback.error.base}>
           {props.model.state.detailError}
         </text>
       </Show>
@@ -415,7 +411,7 @@ function IssueDetail(props: {
         when={props.model.state.detail}
         fallback={
           <Show when={!props.model.state.detailError}>
-            <text fg={theme.text.subdued}>Loading full bead…</text>
+            <text fg={theme.text.muted}>Loading full bead…</text>
           </Show>
         }
       >
@@ -443,10 +439,8 @@ function IssueDetail(props: {
               {([title, body]) => (
                 <Show when={body}>
                   <box flexDirection="column">
-                    <text fg={theme.text.subdued}>{title}</text>
-                    <text fg={theme.text.default}>
-                      {readableText(body ?? "")}
-                    </text>
+                    <text fg={theme.text.muted}>{title}</text>
+                    <text fg={theme.text.base}>{readableText(body ?? "")}</text>
                   </box>
                 </Show>
               )}
@@ -471,12 +465,12 @@ function RelationshipDetail(props: {
   const theme = props.context.theme;
   return (
     <box flexDirection="column">
-      <text fg={theme.text.subdued}>Relationships</text>
+      <text fg={theme.text.muted}>Relationships</text>
       <Show when={props.model.state.graphPhase === "loading"}>
-        <text fg={theme.text.subdued}>Loading immediate relationships…</text>
+        <text fg={theme.text.muted}>Loading immediate relationships…</text>
       </Show>
       <Show when={props.model.state.graphError}>
-        <text fg={theme.text.feedback.error.default}>
+        <text fg={theme.text.feedback.error.base}>
           {props.model.state.graphError}
         </text>
       </Show>
@@ -500,15 +494,15 @@ function RelationshipDetail(props: {
             <Show
               when={!graph().dependencies.length && !graph().dependents.length}
             >
-              <text fg={theme.text.subdued}>No immediate relationships.</text>
+              <text fg={theme.text.muted}>No immediate relationships.</text>
             </Show>
             <Show when={graph().truncated}>
-              <text fg={theme.text.feedback.warning.default}>
+              <text fg={theme.text.feedback.warning.base}>
                 Relationship results are capped; inspect with beads_graph for
                 the bounded response.
               </text>
             </Show>
-            <text fg={theme.text.subdued}>{graph().scope}</text>
+            <text fg={theme.text.muted}>{graph().scope}</text>
           </box>
         )}
       </Show>
@@ -530,15 +524,15 @@ function RelationGroup(props: {
   return (
     <Show when={props.items.length}>
       <box flexDirection="column" marginTop={1}>
-        <text fg={props.context.theme.text.subdued}>{props.title}</text>
+        <text fg={props.context.theme.text.muted}>{props.title}</text>
         <For each={props.items}>
           {(item, index) => (
             <text
               id={`beads-${props.kind}-${index()}`}
               fg={
                 item.canInspect
-                  ? props.context.theme.text.action.secondary.default
-                  : props.context.theme.text.subdued
+                  ? props.context.theme.text.action.secondary.base
+                  : props.context.theme.text.muted
               }
               onMouseDown={click(item)}
             >
