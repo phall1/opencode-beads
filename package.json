@@ -25,9 +25,8 @@
     "./rpc": "./rpc.ts"
   },
   "scripts": {
-    "check": "bun run typecheck && bun run lint && bun run build && bun test",
-    "build": "bun scripts/build.mjs",
-    "prepack": "bun run build",
+    "check": "bun run typecheck && bun run lint && bun run compile && bun test",
+    "compile": "bun scripts/build.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json",
     "lint": "eslint . --max-warnings 0",
     "test": "bun test",

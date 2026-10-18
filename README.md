@@ -60,7 +60,9 @@ bun run check
 bun run test:tui
 ```
 
-`test:tui` uses OpenCode Drive and requires `opencode2` and `bd` on PATH.
+`test:tui` uses OpenCode Drive and requires `opencode` and `bd` on PATH.
+`bun run compile` regenerates the checked-in terminal artifact. Git installs
+need no build lifecycle hooks; the compiled host cannot run npm Git preparation.
 
 [Architecture](TECH.md) · [Testing](TESTING.md) · [Roadmap](PRODUCT.md)
 
