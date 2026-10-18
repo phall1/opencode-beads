@@ -10,7 +10,6 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@opencode/plugin": "2.0.32",
         "@opencode/sdk": "2.0.32",
         "@opencode/theme": "2.0.32",
         "@opentui/core": "0.5.17",
