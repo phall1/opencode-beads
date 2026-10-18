@@ -5,6 +5,7 @@
     "": {
       "name": "opencode-beads",
       "dependencies": {
+        "@opencode/plugin": "2.0.32",
         "@opencode/schema": "2.0.32",
         "zod": "^4.3.6",
       },
@@ -24,7 +25,6 @@
         "typescript-eslint": "^8.57.0",
       },
       "peerDependencies": {
-        "@opencode/plugin": "^2.0.32",
         "@opentui/core": "0.5.17",
         "@opentui/solid": "0.5.17",
         "effect": "^4.0.1",
