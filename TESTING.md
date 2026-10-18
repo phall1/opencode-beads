@@ -88,6 +88,19 @@ SDK/plugin/CLI 2.0.32, Effect 4.0.1, OpenTUI 0.5.17, Solid 1.9.12,
 Bun 1.4.3, Beads (Homebrew, embedded Dolt), macOS.
 Recheck installed-package and native rendering behavior after dependency upgrades.
 
+The lockfile keeps `@effect/platform-node-shared` at 4.0.1 with a root override:
+4.0.5 requires Effect 4.0.5 and fails Drive against the pinned 4.0.1 runtime
+(`effect/Path.make` is absent). Paired `seroval`/`seroval-plugins` 1.6.9 overrides
+repair the development dependency graph without changing the host's Solid pin.
+Overrides apply only to this root install, not to a consumer's host runtime.
+
+The remaining audit findings are in the development SDK graph:
+`@ai-sdk/provider-utils` and `@modelcontextprotocol/client` are pinned by the host;
+`braces` and `sprintf-js` have no patched release in their existing compatible
+ranges. Do not override exact SDK internals to suppress those advisories.
+`bun audit --prod --json` reports no advisories; the full development audit
+reports two high, one moderate, and one low advisory.
+
 This Beads build's `show --readonly` writes `last-touched`; full lookup therefore
 uses `list --all --id`. Its proxied-server mode rejects strict readonly and the
 plugin surfaces that failure. Other Beads versions/backends are unverified.

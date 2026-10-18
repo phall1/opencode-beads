@@ -13,9 +13,13 @@ Add to `opencode.jsonc`:
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["github:phall1/opencode-beads"],
+  "plugins": ["@phall1/opencode-beads"],
 }
 ```
+
+The npm package is `@phall1/opencode-beads`; the unscoped `opencode-beads`
+package belongs to another maintainer. Git loading remains supported with
+`"plugins": ["github:phall1/opencode-beads"]` instead.
 
 ## Usage
 

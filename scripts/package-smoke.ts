@@ -31,14 +31,17 @@ try {
     JSON.stringify({
       private: true,
       dependencies: {
-        "opencode-beads": join(directory, tarballs[0]!),
+        "@phall1/opencode-beads": join(directory, tarballs[0]!),
         "solid-js": "1.9.12",
         "@opencode/theme": "2.0.32",
       },
     }),
   );
   await run([process.execPath, "install"], directory);
-  const entrypoints = Host.resolve({ directory, name: "opencode-beads" });
+  const entrypoints = Host.resolve({
+    directory,
+    name: "@phall1/opencode-beads",
+  });
   for (const name of ["server", "tui", "rpc"] as const)
     assert.ok(entrypoints[name], `${name} export missing`);
   const server = (await Host.load(entrypoints.server!)) as {
@@ -71,7 +74,7 @@ try {
         process.execPath,
         resolve(import.meta.dir, "host-smoke.ts"),
         "--plugin",
-        join(directory, "node_modules/opencode-beads"),
+        join(directory, "node_modules/@phall1/opencode-beads"),
       ],
       directory,
     ),
@@ -96,7 +99,7 @@ try {
     import { testRender } from "@opentui/solid";
     import { theme } from "./theme.ts";
     ensurePluginRuntime();
-    const entries = Host.resolve({ directory: process.cwd(), name: "opencode-beads" });
+    const entries = Host.resolve({ directory: process.cwd(), name: "@phall1/opencode-beads" });
     const { default: plugin } = await Host.load(entries.tui);
     let render;
     let title = "BEFORE REFRESH";

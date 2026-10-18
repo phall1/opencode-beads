@@ -1,6 +1,6 @@
 {
-  "name": "opencode-beads",
-  "version": "0.2.0",
+  "name": "@phall1/opencode-beads",
+  "version": "0.2.1",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/phall1/opencode-beads.git"
@@ -8,6 +8,9 @@
   "description": "A native Beads workbench for OpenCode V2",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "index.ts",
     "server.ts",
@@ -40,7 +43,7 @@
   "dependencies": {
     "@opencode/plugin": "2.0.32",
     "@opencode/schema": "2.0.32",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "effect": "^4.0.1",
@@ -52,14 +55,19 @@
     "@opencode/sdk": "2.0.32",
     "@opencode/theme": "2.0.32",
     "effect": "4.0.1",
-    "@types/bun": "^1.3.14",
-    "eslint": "^9.39.0",
+    "@types/bun": "^1.4.3",
+    "eslint": "^10.13.0",
     "opencode-drive": "2.3.0",
-    "prettier": "^3.8.1",
+    "prettier": "^3.9.10",
     "@opentui/core": "0.5.17",
     "@opentui/solid": "0.5.17",
     "solid-js": "1.9.12",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.0"
+    "typescript-eslint": "^8.71.2"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.1",
+    "seroval": "1.6.9",
+    "seroval-plugins": "1.6.9"
   }
 }
