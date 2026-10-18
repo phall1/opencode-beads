@@ -63,7 +63,7 @@ Package smoke checks both the compatible `linked` and collection `links` RPCs.
 ## Compiled TUI acceptance
 
 Run `bun run test:tui` after UI changes and inspect its screenshots.
-`opencode-drive@2.1.0` runs the installed CLI with a simulated LLM and disposable
+`opencode-drive@2.3.0` runs the installed CLI with a simulated LLM and disposable
 Beads database. `scripts/tui-drive.ts` checks `/beads` autocomplete before opening
 the workbench, then exercises home/session toggling, mouse tabs and rows,
 composer/panel focus, search recovery and clearing, fullscreen round-trips, detail,
@@ -84,8 +84,8 @@ passed source-only tests; Drive is a separate required gate.
 
 ## Tested compatibility
 
-SDK/plugin beta-19365, CLI beta-19378, Effect 4.0.0-rc.112, OpenTUI 0.5.11,
-Solid 1.9.12, Bun 1.3.14, Beads HEAD-7505e17 (Homebrew, embedded Dolt), macOS.
+SDK/plugin/CLI 2.0.32, Effect 4.0.1, OpenTUI 0.5.17, Solid 1.9.12,
+Bun 1.4.3, Beads (Homebrew, embedded Dolt), macOS.
 Recheck installed-package and native rendering behavior after dependency upgrades.
 
 This Beads build's `show --readonly` writes `last-touched`; full lookup therefore

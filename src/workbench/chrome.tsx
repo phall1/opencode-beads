@@ -18,7 +18,7 @@ export function WorkbenchHeader(props: {
       <box flexDirection="row" justifyContent="space-between" flexWrap="wrap">
         <text
           id="beads-heading"
-          fg={props.focused ? theme.text.status.running : theme.text.subdued}
+          fg={props.focused ? theme.text.action.primary.base : theme.text.muted}
         >
           <b>Beads</b>
         </text>
@@ -41,7 +41,7 @@ export function WorkbenchHeader(props: {
           />
         </box>
       </box>
-      <text fg={theme.text.subdued} height={1} wrapMode="none">
+      <text fg={theme.text.muted} height={1} wrapMode="none">
         {displayText(
           shortPath(
             props.context.ui.format.path(props.directory),
@@ -49,7 +49,7 @@ export function WorkbenchHeader(props: {
           ),
         )}
       </text>
-      <text fg={theme.text.subdued} height={1} wrapMode="none">
+      <text fg={theme.text.muted} height={1} wrapMode="none">
         {focusHint(
           props.context,
           props.focused,
@@ -112,7 +112,7 @@ export function WorkbenchFooter(props: {
           run={props.refresh}
         />
       </box>
-      <text fg={props.context.theme.text.subdued}>
+      <text fg={props.context.theme.text.muted}>
         {hint(props.inspecting, props.searching)}
       </text>
     </box>

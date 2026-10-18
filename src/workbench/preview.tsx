@@ -34,16 +34,16 @@ export function SelectionPreview(props: {
       paddingLeft={1}
       paddingTop={props.wide ? 0 : 1}
       border={props.wide ? ["left"] : ["top"]}
-      borderColor={theme.border.default}
+      borderColor={theme.border.base}
     >
-      <text fg={theme.text.subdued} height={1}>
+      <text fg={theme.text.muted} height={1}>
         SELECTED · {displayText(props.issue.id)}
       </text>
-      <text fg={theme.text.default} height={1} wrapMode="none">
+      <text fg={theme.text.base} height={1} wrapMode="none">
         <b>{displayText(props.issue.title)}</b>
       </text>
       <Show when={!detail.loading && detail.error}>
-        <text fg={theme.text.feedback.error.default} height={3}>
+        <text fg={theme.text.feedback.error.base} height={3}>
           {errorMessage(detail.error)}
         </text>
       </Show>
@@ -51,7 +51,7 @@ export function SelectionPreview(props: {
         <Show
           when={!detail.loading && detail()}
           fallback={
-            <text fg={theme.text.subdued} height={3}>
+            <text fg={theme.text.muted} height={3}>
               Loading preview…
             </text>
           }
@@ -59,7 +59,7 @@ export function SelectionPreview(props: {
           {(issue) => (
             <>
               <text
-                fg={theme.text.default}
+                fg={theme.text.base}
                 height={props.wide ? 5 : 2}
                 marginTop={1}
               >
@@ -67,7 +67,7 @@ export function SelectionPreview(props: {
                   "No description. Inspect for all bead fields."}
               </text>
               <Show when={props.wide && issue().acceptance_criteria}>
-                <text fg={theme.text.subdued} height={2}>
+                <text fg={theme.text.muted} height={2}>
                   {readableText(issue().acceptance_criteria)}
                 </text>
               </Show>

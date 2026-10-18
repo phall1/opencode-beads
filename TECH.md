@@ -1,6 +1,6 @@
 # Architecture
 
-One source-distributed package for OpenCode V2. Pin the beta SDK and coordinate
+One source-distributed package for OpenCode V2. Pin the stable SDK and coordinate
 Effect, OpenTUI, and Solid upgrades; tested versions are in [TESTING.md](TESTING.md).
 Use the installed SDK types and the V2 [plugin][plugins], [Effect][effect],
 [CLI][cli], and [RPC][rpc] references.

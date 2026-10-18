@@ -15,7 +15,7 @@ export function Action(props: {
     if (!props.disabled) return props.run();
   });
   const variant = () => (props.primary ? "primary" : "secondary");
-  const state = () => (props.disabled ? "disabled" : "default");
+  const state = () => (props.disabled ? "disabled" : "base");
   return (
     <text
       id={props.id}
@@ -24,8 +24,8 @@ export function Action(props: {
       fg={props.context.theme.text.action[variant()][state()]}
       bg={
         hovered()
-          ? props.context.theme.background.surface.overlay
-          : props.context.theme.background.surface.offset
+          ? props.context.theme.background.raised.high
+          : props.context.theme.background.raised.base
       }
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}

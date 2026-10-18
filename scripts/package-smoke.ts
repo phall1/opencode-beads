@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { scratch } from "./temp";
 import { join, resolve } from "node:path";
 import { Host } from "@opencode/plugin/host";
@@ -33,6 +33,7 @@ try {
       dependencies: {
         "opencode-beads": join(directory, tarballs[0]!),
         "solid-js": "1.9.12",
+        "@opencode/theme": "2.0.32",
       },
     }),
   );
@@ -78,6 +79,63 @@ try {
   console.log(
     "Installed tarball: V2 Host.resolve/load passed for server, TUI, and RPC.",
   );
+  await Bun.write(
+    join(directory, "theme.ts"),
+    await readFile(resolve(import.meta.dir, "../test/theme.ts"), "utf8"),
+  );
+  const rendered = await run(
+    [
+      process.execPath,
+      "--preload",
+      "@opentui/solid/preload",
+      "--eval",
+      `
+    import assert from "node:assert/strict";
+    import { Host } from "@opencode/plugin/host";
+    import { ensurePluginRuntime } from "@opencode/plugin/runtime";
+    import { testRender } from "@opentui/solid";
+    import { theme } from "./theme.ts";
+    ensurePluginRuntime();
+    const entries = Host.resolve({ directory: process.cwd(), name: "opencode-beads" });
+    const { default: plugin } = await Host.load(entries.tui);
+    let render;
+    let title = "BEFORE REFRESH";
+    const layers = [];
+    const context = {
+      theme,
+      location: { directory: "/fixture" },
+      keymap: { layer: (factory) => layers.push(factory), shortcuts: () => [] },
+      client: { rpc: () => ({ list: async (query) => ({
+        directory: "/fixture", view: query.view, limit: 100, mayHaveMore: false,
+        issues: [{ id: "smoke-1", title, status: "open", priority: 2,
+          assignee: "", description: "", labels: [], dependencies: [] }],
+      }) }) },
+      ui: {
+        router: { register: (route) => { render = route.render; return () => {}; } },
+        slot: () => () => {},
+        format: { path: (path) => path },
+      },
+    };
+    const cleanup = plugin.setup(context);
+    const screen = await testRender(() => render(), { width: 80, height: 24 });
+    try {
+      await screen.waitForFrame((frame) => frame.includes(title));
+      title = "AFTER REFRESH";
+      const refresh = layers.flatMap((factory) => factory().commands ?? []).find((command) => command.bind === "r");
+      assert.ok(refresh, "installed workbench did not register refresh");
+      await refresh.run();
+      await screen.waitForFrame((frame) => frame.includes(title));
+    } finally {
+      screen.renderer.destroy();
+      cleanup?.();
+     }
+     console.log("Installed TUI: asynchronous refresh updates the rendered frame.");
+  `,
+    ],
+    directory,
+  );
+  assert.match(rendered, /Installed TUI: asynchronous refresh/);
+  console.log(rendered);
 } finally {
   await rm(directory, { recursive: true, force: true });
 }

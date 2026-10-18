@@ -116,7 +116,6 @@ async function hostCheck(directory: string, pluginDirectory: string) {
           );
           yield* host.session.interrupt({
             sessionID: session.id,
-            continue: false,
           });
           const retryInput = {
             sessionID: session.id,

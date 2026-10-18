@@ -3,7 +3,7 @@
 - Read PRODUCT.md and TECH.md; keep behavior and compatibility evidence current.
 - Target OpenCode V2. Read https://opencode.ai/v2/docs/build/plugins and its
   CLI/RPC references before host changes. Verify installed SDK types; never invent
-  declarations. Pin the beta SDK and coordinate OpenTUI/Solid upgrades.
+  declarations. Pin the stable SDK and coordinate OpenTUI/Solid upgrades.
 - Use `@opencode/plugin/effect` on the server. Keep Effects lazy; the host owns
   execution, interruption, and Scope. No nested runtimes in handlers. The TUI
   follows the host's Solid/Promise interface.

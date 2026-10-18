@@ -38,11 +38,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
   const key = () => {
     const value = location();
     return value
-      ? JSON.stringify([
-          props.panel.sessionID,
-          value.directory,
-          value.workspaceID,
-        ])
+      ? JSON.stringify([props.panel.sessionID, value.directory])
       : undefined;
   };
   context.keymap.layer(() => ({
@@ -62,7 +58,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
       when={key()}
       keyed
       fallback={
-        <text fg={context.theme.text.subdued}>
+        <text fg={context.theme.text.muted}>
           {synced.error
             ? `${errorMessage(synced.error)} Press r to retry.`
             : "Loading session workspace…"}
@@ -111,10 +107,7 @@ function SessionWorkbench(props: { context: Context; panel: PanelInput }) {
             attach={async (issue) => {
               const entry = await beadEntry(issue, connected.location);
               const current = await context.client.session.get({ sessionID });
-              if (
-                current.location.directory !== connected.directory ||
-                current.location.workspaceID !== connected.location.workspaceID
-              )
+              if (current.location.directory !== connected.directory)
                 throw new Error(
                   "Session workspace changed. Reopen Beads before adding context.",
                 );
