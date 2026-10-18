@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "opencode-beads",
+      "name": "@phall1/opencode-beads",
       "dependencies": {
         "@opencode/plugin": "2.0.32",
         "@opencode/schema": "2.0.32",
